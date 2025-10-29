@@ -1,0 +1,148 @@
+@import './variables.scss';
+
+// 全局样式
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html,
+body {
+  width: 100%;
+  height: 100%;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC',
+    'Hiragino Sans GB', 'Microsoft YaHei', 'Helvetica Neue', Helvetica, Arial,
+    sans-serif;
+  font-size: $font-size-sm;
+  color: $text-primary;
+  background-color: $bg-dark;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+// 滚动条样式
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: $bg-dark;
+}
+
+::-webkit-scrollbar-thumb {
+  background: $bg-light;
+  border-radius: $border-radius-small;
+
+  &:hover {
+    background: $bg-hover;
+  }
+}
+
+// Element Plus 暗色主题覆盖
+.dark {
+  color-scheme: dark;
+
+  // 表格样式
+  .el-table {
+    --el-table-bg-color: #{$bg-dark};
+    --el-table-tr-bg-color: #{$bg-dark};
+    --el-table-header-bg-color: #{$bg-darker};
+    --el-table-border-color: #{$border-color};
+    --el-table-text-color: #{$text-primary};
+
+    .el-table__row:hover {
+      background-color: $bg-hover !important;
+    }
+  }
+
+  // 输入框样式
+  .el-input__wrapper {
+    background-color: $bg-light;
+    box-shadow: 0 0 0 1px $border-color inset;
+
+    &:hover {
+      box-shadow: 0 0 0 1px $border-light inset;
+    }
+
+    &.is-focus {
+      box-shadow: 0 0 0 1px $primary-color inset !important;
+    }
+  }
+
+  // 按钮样式
+  .el-button--primary {
+    background-color: $primary-color;
+    border-color: $primary-color;
+
+    &:hover {
+      background-color: $primary-hover;
+      border-color: $primary-hover;
+    }
+
+    &:active {
+      background-color: $primary-active;
+      border-color: $primary-active;
+    }
+  }
+
+  // 对话框样式
+  .el-dialog {
+    background-color: $bg-dark;
+    border: 1px solid $border-color;
+  }
+
+  .el-dialog__header {
+    border-bottom: 1px solid $border-color;
+  }
+
+  // 下拉菜单样式
+  .el-select-dropdown {
+    background-color: $bg-dark;
+    border: 1px solid $border-color;
+  }
+
+  .el-select-dropdown__item:hover {
+    background-color: $bg-hover;
+  }
+
+  .el-select-dropdown__item.is-selected {
+    color: $primary-color;
+  }
+}
+
+// 无边框窗口拖拽区域
+.titlebar-drag-region {
+  -webkit-app-region: drag;
+  app-region: drag;
+}
+
+.titlebar-no-drag {
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+}
+
+// 通用工具类
+.flex {
+  display: flex;
+}
+
+.flex-center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.flex-between {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.text-ellipsis {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

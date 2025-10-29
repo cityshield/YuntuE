@@ -1,0 +1,76 @@
+// 云图渲染 - 官网配色方案
+// 与 YuntuWeb 官网保持一致的现代化设计
+
+// 主色调 - 专业的蓝色
+$primary-color: #2563eb;      // 蓝色主色（Tailwind blue-600）
+$primary-hover: #3b82f6;      // 亮蓝色（悬停）
+$primary-active: #1d4ed8;     // 深蓝色（激活）
+
+// 辅助强调色
+$accent-blue: #06b6d4;        // 青色强调
+$accent-purple: #7c3aed;      // 紫色辅助
+$accent-green: #10b981;       // 成功绿
+
+// 背景色（接近纯黑的深色 - GitHub Dark 风格）
+$bg-dark: #0D1117;           // 主背景（深灰黑）
+$bg-darker: #010409;         // 更深背景（接近纯黑）
+$bg-light: #161B22;          // 浅深色背景
+$bg-hover: #1C2128;          // 悬停背景
+
+// 文字颜色（高对比度，易读性强）
+$text-primary: #E6EDF3;      // 主文字（浅灰白）
+$text-secondary: #8B949E;    // 次要文字（中灰）
+$text-disabled: #484F58;     // 禁用文字（深灰）
+$text-accent: #7EE2B8;       // 强调文字（浅青绿）
+
+// 边框颜色
+$border-color: #21262D;      // 主边框（深色）
+$border-light: #30363D;      // 浅边框
+$border-accent: #00D9B6;     // 强调边框（青色）
+
+// 状态颜色（柔和配套）
+$status-success: #3FB950;    // 成功 - 柔和绿
+$status-warning: #D29922;    // 警告 - 金橙
+$status-danger: #F85149;     // 危险 - 柔和红
+$status-info: #58A6FF;       // 信息 - 柔和蓝
+
+// 阴影（柔和深邃）
+$shadow-small: 0 2px 4px rgba(0, 0, 0, 0.4);
+$shadow-medium: 0 4px 8px rgba(0, 0, 0, 0.5);
+$shadow-large: 0 8px 16px rgba(0, 0, 0, 0.6);
+
+// 微光效果（青色光晕 - 更subtle）
+$glow-primary: 0 0 16px rgba(0, 217, 182, 0.25);
+$glow-primary-strong: 0 0 24px rgba(0, 217, 182, 0.4);
+$glow-success: 0 0 12px rgba(63, 185, 80, 0.3);
+$glow-accent: 0 0 14px rgba(0, 168, 232, 0.25);
+
+// 圆角
+$border-radius-small: 4px;
+$border-radius-medium: 8px;
+$border-radius-large: 12px;
+
+// 间距
+$spacing-xs: 4px;
+$spacing-sm: 8px;
+$spacing-md: 16px;
+$spacing-lg: 24px;
+$spacing-xl: 32px;
+
+// 字体大小
+$font-size-xs: 12px;
+$font-size-sm: 14px;
+$font-size-md: 16px;
+$font-size-lg: 18px;
+$font-size-xl: 20px;
+$font-size-xxl: 24px;
+
+// 过渡动画
+$transition-fast: 0.2s;
+$transition-normal: 0.3s;
+$transition-slow: 0.5s;
+
+// 渐变（优雅的青色渐变）
+$gradient-primary: linear-gradient(135deg, #00D9B6 0%, #00A8E8 100%);
+$gradient-accent: linear-gradient(135deg, #00C9A7 0%, #00D9B6 100%);
+$gradient-dark: linear-gradient(180deg, #0D1117 0%, #010409 100%);
