@@ -85,26 +85,27 @@
       />
     </div>
 
-    <!-- 预检对话框 -->
-    <PreCheckDialog
-      v-if="showPreCheckDialog && preCheckResult"
-      :result="preCheckResult"
-      @confirm="onPreCheckConfirm"
-      @cancel="onPreCheckCancel"
+    <!-- 打包详情对话框 -->
+    <PackageDetailDialog
+      v-if="showPackageDialog && packageInfo"
+      :package-info="packageInfo"
+      @confirm="onPackageConfirm"
+      @cancel="onPackageCancel"
     />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Upload, FolderOpened } from '@element-plus/icons-vue'
 import { useUpload } from '@/composables/useUpload'
 import UploadTask from '@/components/UploadTask.vue'
-import PreCheckDialog from '@/components/PreCheckDialog.vue'
+import PackageDetailDialog from '@/components/PackageDetailDialog.vue'
 import { drivesAPI } from '@/api/drives'
-import type { PreCheckResponse } from '@/api/upload'
+import type { PackageInfo } from '@/types/upload'
+// 依赖确认流程由 Python CLI 打包替代，不再引入旧的扫描类型
 
 const router = useRouter()
 
@@ -118,20 +119,47 @@ const {
   cancelTask,
   removeTask,
   clearCompleted,
+  setPackageConfirmCallback,
 } = useUpload()
 
 const activeTab = ref('upload')
 const isDragOver = ref(false)
 const fileInput = ref<HTMLInputElement>()
 const defaultDriveId = ref<string>('')
-
-// 预检对话框状态
-const preCheckResult = ref<PreCheckResponse | null>(null)
-const showPreCheckDialog = ref(false)
-let preCheckResolve: ((value: boolean) => void) | null = null
+// 打包详情对话框状态
+const packageInfo = ref<PackageInfo | null>(null)
+const showPackageDialog = ref(false)
+let packageResolve: ((value: boolean) => void) | null = null
 
 // 支持的文件格式
 const SUPPORTED_FORMATS = ['.ma', '.mb', '.zip', '.rar', '.blend', '.c4d', '.max', '.fbx']
+
+// 打包确认回调
+const handlePackageConfirm = async (info: PackageInfo): Promise<boolean> => {
+  return new Promise((resolve) => {
+    packageInfo.value = reactive(info)
+    showPackageDialog.value = true
+    packageResolve = resolve
+  })
+}
+
+// 打包对话框确认
+const onPackageConfirm = () => {
+  showPackageDialog.value = false
+  if (packageResolve) {
+    packageResolve(true)
+    packageResolve = null
+  }
+}
+
+// 打包对话框取消
+const onPackageCancel = () => {
+  showPackageDialog.value = false
+  if (packageResolve) {
+    packageResolve(false)
+    packageResolve = null
+  }
+}
 
 // 获取默认盘符
 onMounted(async () => {
@@ -143,6 +171,10 @@ onMounted(async () => {
     console.error('Failed to load default drive:', error)
     ElMessage.error('获取默认盘符失败，上传功能可能无法正常使用')
   }
+
+  // 设置打包确认回调
+  setPackageConfirmCallback(handlePackageConfirm)
+
 })
 
 // 验证文件类型
@@ -215,33 +247,7 @@ const handleDragLeave = (e: DragEvent) => {
   }
 }
 
-// 预检结果处理
-const handlePreCheckResult = async (result: PreCheckResponse): Promise<boolean> => {
-  return new Promise((resolve) => {
-    preCheckResult.value = result
-    showPreCheckDialog.value = true
-    preCheckResolve = resolve
-  })
-}
-
-// 预检对话框确认
-const onPreCheckConfirm = () => {
-  showPreCheckDialog.value = false
-  if (preCheckResolve) {
-    preCheckResolve(true)
-    preCheckResolve = null
-  }
-}
-
-// 预检对话框取消
-const onPreCheckCancel = () => {
-  showPreCheckDialog.value = false
-  if (preCheckResolve) {
-    preCheckResolve(false)
-    preCheckResolve = null
-  }
-  ElMessage.info('已取消上传')
-}
+// 依赖确认逻辑已移除，统一由 UploadManager 调用 Python CLI 打包
 
 // 处理文件拖放
 const handleDrop = async (e: DragEvent) => {
@@ -267,8 +273,18 @@ const handleDrop = async (e: DragEvent) => {
       return
     }
     // 传入预检回调
-    await addFiles(valid, 'default', defaultDriveId.value, undefined, undefined, handlePreCheckResult)
-    ElMessage.success(`已添加 ${valid.length} 个文件到上传队列`)
+    try {
+      await addFiles(valid, 'default', defaultDriveId.value)
+      ElMessage.success(`已添加 ${valid.length} 个文件到上传队列`)
+    } catch (error: any) {
+      console.error('Failed to add files:', error)
+      const message = error?.message || '上传任务创建失败，请重试'
+      if (message.includes('取消')) {
+        ElMessage.info(message)
+      } else {
+        ElMessage.error(message)
+      }
+    }
   }
 }
 
@@ -301,8 +317,18 @@ const handleFileSelect = async (e: Event) => {
       return
     }
     // 传入预检回调
-    await addFiles(valid, 'default', defaultDriveId.value, undefined, undefined, handlePreCheckResult)
-    ElMessage.success(`已添加 ${valid.length} 个文件到上传队列`)
+    try {
+      await addFiles(valid, 'default', defaultDriveId.value)
+      ElMessage.success(`已添加 ${valid.length} 个文件到上传队列`)
+    } catch (error: any) {
+      console.error('Failed to add files:', error)
+      const message = error?.message || '上传任务创建失败，请重试'
+      if (message.includes('取消')) {
+        ElMessage.info(message)
+      } else {
+        ElMessage.error(message)
+      }
+    }
   }
 
   // 清空input，允许重复选择相同文件
@@ -334,6 +360,29 @@ const clearUploadCache = () => {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+}
+
+.maya-path-alert {
+  margin: 16px 0 24px;
+
+  .maya-alert-content {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+
+  .path-text {
+    color: $text-secondary;
+    word-break: break-all;
+    flex: 1;
+  }
+
+  .maya-alert-actions {
+    display: flex;
+    gap: 8px;
+  }
 }
 
 .task-tabs {

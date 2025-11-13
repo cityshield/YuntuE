@@ -1,0 +1,542 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>文件发送方 - P2P 测试</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 20px;
+    }
+
+    .container {
+      background: white;
+      border-radius: 16px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+      padding: 40px;
+      max-width: 500px;
+      width: 100%;
+    }
+
+    h1 {
+      color: #667eea;
+      margin-bottom: 10px;
+      font-size: 28px;
+    }
+
+    .subtitle {
+      color: #666;
+      margin-bottom: 30px;
+      font-size: 14px;
+    }
+
+    .pairing-code {
+      background: #f7f9fc;
+      border: 2px solid #667eea;
+      border-radius: 12px;
+      padding: 20px;
+      text-align: center;
+      margin-bottom: 30px;
+    }
+
+    .pairing-code .label {
+      color: #666;
+      font-size: 14px;
+      margin-bottom: 10px;
+    }
+
+    .pairing-code .code {
+      font-size: 48px;
+      font-weight: bold;
+      color: #667eea;
+      letter-spacing: 8px;
+      font-family: "Courier New", monospace;
+    }
+
+    .file-input-wrapper {
+      position: relative;
+      margin-bottom: 20px;
+    }
+
+    .file-input {
+      width: 100%;
+      padding: 15px;
+      border: 2px dashed #ddd;
+      border-radius: 8px;
+      cursor: pointer;
+      text-align: center;
+      transition: all 0.3s;
+    }
+
+    .file-input:hover {
+      border-color: #667eea;
+      background: #f7f9fc;
+    }
+
+    .file-input input {
+      display: none;
+    }
+
+    .file-info {
+      background: #f7f9fc;
+      padding: 15px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+      display: none;
+    }
+
+    .file-info.show {
+      display: block;
+    }
+
+    .file-info .name {
+      font-weight: bold;
+      color: #333;
+      margin-bottom: 5px;
+    }
+
+    .file-info .size {
+      color: #666;
+      font-size: 14px;
+    }
+
+    .status {
+      background: #f7f9fc;
+      padding: 15px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+      min-height: 60px;
+    }
+
+    .status .text {
+      color: #666;
+      font-size: 14px;
+    }
+
+    .status .text.success {
+      color: #10b981;
+    }
+
+    .status .text.error {
+      color: #ef4444;
+    }
+
+    .progress-bar {
+      width: 100%;
+      height: 8px;
+      background: #e5e7eb;
+      border-radius: 4px;
+      overflow: hidden;
+      margin-top: 10px;
+      display: none;
+    }
+
+    .progress-bar.show {
+      display: block;
+    }
+
+    .progress-bar .fill {
+      height: 100%;
+      background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+      width: 0%;
+      transition: width 0.3s;
+    }
+
+    .speed {
+      text-align: center;
+      color: #666;
+      font-size: 14px;
+      margin-top: 5px;
+      display: none;
+    }
+
+    .speed.show {
+      display: block;
+    }
+
+    button {
+      width: 100%;
+      padding: 15px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 16px;
+      font-weight: bold;
+      cursor: pointer;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+    }
+
+    button:active {
+      transform: translateY(0);
+    }
+
+    button:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+      transform: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>📤 文件发送方</h1>
+    <p class="subtitle">通过 WebRTC 点对点传输文件</p>
+
+    <div class="pairing-code">
+      <div class="label">配对码</div>
+      <div class="code" id="pairingCode">------</div>
+    </div>
+
+    <div class="file-input-wrapper">
+      <label class="file-input">
+        <input type="file" id="fileInput">
+        <span>点击选择文件</span>
+      </label>
+    </div>
+
+    <div class="file-info" id="fileInfo">
+      <div class="name" id="fileName"></div>
+      <div class="size" id="fileSize"></div>
+    </div>
+
+    <div class="status">
+      <div class="text" id="statusText">等待选择文件...</div>
+      <div class="progress-bar" id="progressBar">
+        <div class="fill" id="progressFill"></div>
+      </div>
+      <div class="speed" id="speed"></div>
+    </div>
+
+    <button id="sendBtn" disabled>发送文件</button>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/simple-peer@9.11.1/simplepeer.min.js"></script>
+  <script>
+    // 配置
+    const SIGNALING_SERVER = 'ws://192.168.99.165:9000';
+
+    // 自适应传输参数
+    let CHUNK_SIZE = 16 * 1024; // 初始 16KB，会动态调整
+    const MIN_CHUNK_SIZE = 16 * 1024; // 最小 16KB
+    const MAX_CHUNK_SIZE = 256 * 1024; // 最大 256KB
+
+    let HIGH_WATER_MARK = 1 * 1024 * 1024; // 初始 1MB，会动态调整
+    const MIN_HIGH_WATER_MARK = 1 * 1024 * 1024; // 最小 1MB
+    const MAX_HIGH_WATER_MARK = 16 * 1024 * 1024; // 最大 16MB
+
+    let SEND_DELAY = 5; // 初始延迟 5ms，会动态调整
+    const MIN_SEND_DELAY = 0; // 最小 0ms（无延迟）
+    const MAX_SEND_DELAY = 20; // 最大 20ms
+
+    // 生成 6 位数字配对码
+    const pairingCode = Math.floor(100000 + Math.random() * 900000).toString();
+    document.getElementById('pairingCode').textContent = pairingCode;
+
+    // 状态
+    let selectedFile = null;
+    let peer = null;
+    let ws = null;
+    let startTime = 0;
+    let sentBytes = 0;
+
+    // UI 元素
+    const fileInput = document.getElementById('fileInput');
+    const fileInfo = document.getElementById('fileInfo');
+    const fileName = document.getElementById('fileName');
+    const fileSize = document.getElementById('fileSize');
+    const statusText = document.getElementById('statusText');
+    const progressBar = document.getElementById('progressBar');
+    const progressFill = document.getElementById('progressFill');
+    const speed = document.getElementById('speed');
+    const sendBtn = document.getElementById('sendBtn');
+
+    // 连接信令服务器
+    function connectSignalingServer() {
+      ws = new WebSocket(SIGNALING_SERVER);
+
+      ws.onopen = () => {
+        console.log('✅ 已连接到信令服务器');
+        // 注册为发送方
+        ws.send(JSON.stringify({
+          type: 'register',
+          pairingCode: pairingCode,
+          role: 'sender'
+        }));
+        updateStatus('已连接到服务器，等待接收方...');
+      };
+
+      ws.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+        handleSignalingMessage(data);
+      };
+
+      ws.onerror = (error) => {
+        console.error('❌ 信令服务器错误:', error);
+        updateStatus('信令服务器连接失败', 'error');
+      };
+
+      ws.onclose = () => {
+        console.log('❌ 信令服务器断开');
+        updateStatus('已断开连接', 'error');
+      };
+    }
+
+    // 处理信令消息
+    function handleSignalingMessage(data) {
+      console.log('📨 收到信令消息:', data.type);
+
+      switch (data.type) {
+        case 'registered':
+          console.log('✅ 已注册为发送方');
+          break;
+
+        case 'ready':
+          updateStatus('接收方已连接，准备发送...', 'success');
+          initializePeer();
+          break;
+
+        case 'signal':
+          if (peer) {
+            peer.signal(data.signal);
+          }
+          break;
+      }
+    }
+
+    // 初始化 WebRTC 连接
+    function initializePeer() {
+      peer = new SimplePeer({
+        initiator: true,
+        trickle: true
+      });
+
+      peer.on('signal', (signal) => {
+        // 发送信令数据给信令服务器
+        ws.send(JSON.stringify({
+          type: 'signal',
+          pairingCode: pairingCode,
+          role: 'sender',
+          signal: signal
+        }));
+      });
+
+      peer.on('connect', () => {
+        console.log('✅ P2P 连接建立成功！');
+        updateStatus('P2P 连接已建立，可以发送文件', 'success');
+        sendBtn.disabled = !selectedFile;
+      });
+
+      peer.on('error', (err) => {
+        console.error('❌ P2P 错误:', err);
+        updateStatus('连接错误: ' + err.message, 'error');
+      });
+    }
+
+    // 文件选择
+    fileInput.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (file) {
+        selectedFile = file;
+        fileName.textContent = file.name;
+        fileSize.textContent = formatFileSize(file.size);
+        fileInfo.classList.add('show');
+
+        if (peer && peer.connected) {
+          sendBtn.disabled = false;
+        }
+
+        updateStatus('文件已选择，等待连接...');
+      }
+    });
+
+    // 发送文件（改进的流控机制）
+    sendBtn.addEventListener('click', () => {
+      if (!selectedFile || !peer || !peer.connected) {
+        return;
+      }
+
+      sendBtn.disabled = true;
+      progressBar.classList.add('show');
+      speed.classList.add('show');
+      sentBytes = 0;
+      startTime = Date.now();
+
+      // 发送文件元数据
+      const metadata = {
+        type: 'metadata',
+        name: selectedFile.name,
+        size: selectedFile.size,
+        mimeType: selectedFile.type
+      };
+      peer.send(JSON.stringify(metadata));
+
+      // 分块发送文件（自适应高速传输）
+      let offset = 0;
+      let retryCount = 0;
+      const MAX_RETRIES = 3;
+      let consecutiveSuccesses = 0; // 连续成功次数
+      let lastAdjustTime = Date.now(); // 上次调整参数的时间
+
+      const sendNextChunk = () => {
+        if (!peer || !peer.connected) {
+          updateStatus('连接已断开', 'error');
+          sendBtn.disabled = false;
+          return;
+        }
+
+        // 检查是否还有数据要发送
+        if (offset >= selectedFile.size) {
+          // 所有数据发送完成
+          peer.send(JSON.stringify({ type: 'end' }));
+          updateStatus('文件发送完成！', 'success');
+          sendBtn.disabled = false;
+          return;
+        }
+
+        // 检查缓冲区大小
+        const bufferedAmount = peer._channel ? peer._channel.bufferedAmount : 0;
+
+        if (bufferedAmount > HIGH_WATER_MARK) {
+          // 缓冲区满了，等待 50ms 后重试
+          setTimeout(sendNextChunk, 50);
+          return;
+        }
+
+        // 读取数据块
+        const slice = selectedFile.slice(offset, offset + CHUNK_SIZE);
+        const reader = new FileReader();
+
+        reader.onload = (e) => {
+          // 发送前再次检查缓冲区
+          const currentBuffered = peer._channel ? peer._channel.bufferedAmount : 0;
+
+          if (currentBuffered > HIGH_WATER_MARK) {
+            // 缓冲区又满了，延迟后重试
+            setTimeout(() => {
+              // 回退 offset，重新读取这个块
+              offset -= 0; // offset 实际还没增加，不需要回退
+              sendNextChunk();
+            }, 50);
+            return;
+          }
+
+          try {
+            // 发送数据
+            peer.send(e.target.result);
+            offset += e.target.result.byteLength;
+            sentBytes += e.target.result.byteLength;
+            retryCount = 0; // 重置重试计数
+            consecutiveSuccesses++; // 增加连续成功计数
+
+            // 自适应参数调整：连续成功10次且超过1秒后，尝试提升参数
+            const now = Date.now();
+            if (consecutiveSuccesses >= 10 && (now - lastAdjustTime) > 1000) {
+              // 逐步增大参数
+              if (CHUNK_SIZE < MAX_CHUNK_SIZE) {
+                CHUNK_SIZE = Math.min(CHUNK_SIZE * 1.5, MAX_CHUNK_SIZE);
+                console.log(`📈 提升数据块大小: ${(CHUNK_SIZE / 1024).toFixed(0)}KB`);
+              }
+              if (HIGH_WATER_MARK < MAX_HIGH_WATER_MARK) {
+                HIGH_WATER_MARK = Math.min(HIGH_WATER_MARK * 1.5, MAX_HIGH_WATER_MARK);
+                console.log(`📈 提升缓冲区: ${(HIGH_WATER_MARK / 1024 / 1024).toFixed(1)}MB`);
+              }
+              if (SEND_DELAY > MIN_SEND_DELAY) {
+                SEND_DELAY = Math.max(SEND_DELAY - 1, MIN_SEND_DELAY);
+                console.log(`📈 降低延迟: ${SEND_DELAY}ms`);
+              }
+              lastAdjustTime = now;
+              consecutiveSuccesses = 0;
+            }
+
+            // 更新进度
+            const progress = (offset / selectedFile.size) * 100;
+            progressFill.style.width = progress + '%';
+
+            // 计算速度
+            const elapsed = (Date.now() - startTime) / 1000;
+            const speedValue = sentBytes / elapsed;
+            speed.textContent = `速度: ${formatFileSize(speedValue)}/s`;
+            updateStatus(`发送中... ${progress.toFixed(1)}% [${(CHUNK_SIZE/1024).toFixed(0)}KB块]`);
+
+            // 延迟后继续发送下一块
+            setTimeout(sendNextChunk, SEND_DELAY);
+
+          } catch (err) {
+            console.error('发送错误:', err);
+            consecutiveSuccesses = 0; // 重置成功计数
+
+            // 降低参数以提高稳定性
+            if (CHUNK_SIZE > MIN_CHUNK_SIZE) {
+              CHUNK_SIZE = Math.max(CHUNK_SIZE / 2, MIN_CHUNK_SIZE);
+              console.log(`📉 降低数据块大小: ${(CHUNK_SIZE / 1024).toFixed(0)}KB`);
+            }
+            if (HIGH_WATER_MARK > MIN_HIGH_WATER_MARK) {
+              HIGH_WATER_MARK = Math.max(HIGH_WATER_MARK / 2, MIN_HIGH_WATER_MARK);
+              console.log(`📉 降低缓冲区: ${(HIGH_WATER_MARK / 1024 / 1024).toFixed(1)}MB`);
+            }
+            if (SEND_DELAY < MAX_SEND_DELAY) {
+              SEND_DELAY = Math.min(SEND_DELAY + 5, MAX_SEND_DELAY);
+              console.log(`📉 增加延迟: ${SEND_DELAY}ms`);
+            }
+
+            // 重试逻辑
+            if (retryCount < MAX_RETRIES) {
+              retryCount++;
+              console.log(`重试 ${retryCount}/${MAX_RETRIES}...`);
+              setTimeout(sendNextChunk, 100);
+            } else {
+              updateStatus('发送失败: ' + err.message, 'error');
+              sendBtn.disabled = false;
+            }
+          }
+        };
+
+        reader.onerror = (err) => {
+          console.error('文件读取错误:', err);
+          updateStatus('文件读取失败', 'error');
+          sendBtn.disabled = false;
+        };
+
+        reader.readAsArrayBuffer(slice);
+      };
+
+      updateStatus('开始发送文件...');
+      sendNextChunk();
+    });
+
+    // 工具函数
+    function updateStatus(text, type = '') {
+      statusText.textContent = text;
+      statusText.className = 'text' + (type ? ' ' + type : '');
+    }
+
+    function formatFileSize(bytes) {
+      if (bytes < 1024) return bytes + ' B';
+      if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(2) + ' KB';
+      if (bytes < 1024 * 1024 * 1024) return (bytes / 1024 / 1024).toFixed(2) + ' MB';
+      return (bytes / 1024 / 1024 / 1024).toFixed(2) + ' GB';
+    }
+
+    // 启动
+    connectSignalingServer();
+  </script>
+</body>
+</html>

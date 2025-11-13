@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>文件接收方 - P2P 测试</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 20px;
+    }
+
+    .container {
+      background: white;
+      border-radius: 16px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+      padding: 40px;
+      max-width: 500px;
+      width: 100%;
+    }
+
+    h1 {
+      color: #f5576c;
+      margin-bottom: 10px;
+      font-size: 28px;
+    }
+
+    .subtitle {
+      color: #666;
+      margin-bottom: 30px;
+      font-size: 14px;
+    }
+
+    .code-input-wrapper {
+      margin-bottom: 30px;
+    }
+
+    .code-input-wrapper label {
+      display: block;
+      color: #666;
+      font-size: 14px;
+      margin-bottom: 10px;
+    }
+
+    .code-input {
+      width: 100%;
+      padding: 15px;
+      border: 2px solid #ddd;
+      border-radius: 8px;
+      font-size: 24px;
+      text-align: center;
+      letter-spacing: 8px;
+      font-family: "Courier New", monospace;
+      transition: border-color 0.3s;
+    }
+
+    .code-input:focus {
+      outline: none;
+      border-color: #f5576c;
+    }
+
+    .file-info {
+      background: #f7f9fc;
+      padding: 15px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+      display: none;
+    }
+
+    .file-info.show {
+      display: block;
+    }
+
+    .file-info .name {
+      font-weight: bold;
+      color: #333;
+      margin-bottom: 5px;
+    }
+
+    .file-info .size {
+      color: #666;
+      font-size: 14px;
+    }
+
+    .status {
+      background: #f7f9fc;
+      padding: 15px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+      min-height: 60px;
+    }
+
+    .status .text {
+      color: #666;
+      font-size: 14px;
+    }
+
+    .status .text.success {
+      color: #10b981;
+    }
+
+    .status .text.error {
+      color: #ef4444;
+    }
+
+    .progress-bar {
+      width: 100%;
+      height: 8px;
+      background: #e5e7eb;
+      border-radius: 4px;
+      overflow: hidden;
+      margin-top: 10px;
+      display: none;
+    }
+
+    .progress-bar.show {
+      display: block;
+    }
+
+    .progress-bar .fill {
+      height: 100%;
+      background: linear-gradient(90deg, #f093fb 0%, #f5576c 100%);
+      width: 0%;
+      transition: width 0.3s;
+    }
+
+    .speed {
+      text-align: center;
+      color: #666;
+      font-size: 14px;
+      margin-top: 5px;
+      display: none;
+    }
+
+    .speed.show {
+      display: block;
+    }
+
+    button {
+      width: 100%;
+      padding: 15px;
+      background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 16px;
+      font-weight: bold;
+      cursor: pointer;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 10px 20px rgba(245, 87, 108, 0.3);
+    }
+
+    button:active {
+      transform: translateY(0);
+    }
+
+    button:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .download-link {
+      display: none;
+      width: 100%;
+      padding: 15px;
+      background: #10b981;
+      color: white;
+      text-align: center;
+      text-decoration: none;
+      border-radius: 8px;
+      font-size: 16px;
+      font-weight: bold;
+      margin-top: 10px;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    .download-link.show {
+      display: block;
+    }
+
+    .download-link:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 10px 20px rgba(16, 185, 129, 0.3);
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>📥 文件接收方</h1>
+    <p class="subtitle">通过 WebRTC 点对点接收文件</p>
+
+    <div class="code-input-wrapper">
+      <label for="codeInput">请输入发送方的配对码</label>
+      <input
+        type="text"
+        id="codeInput"
+        class="code-input"
+        placeholder="000000"
+        maxlength="6"
+        pattern="[0-9]*"
+      >
+    </div>
+
+    <button id="connectBtn">连接发送方</button>
+
+    <div class="file-info" id="fileInfo">
+      <div class="name" id="fileName"></div>
+      <div class="size" id="fileSize"></div>
+    </div>
+
+    <div class="status">
+      <div class="text" id="statusText">输入配对码以连接...</div>
+      <div class="progress-bar" id="progressBar">
+        <div class="fill" id="progressFill"></div>
+      </div>
+      <div class="speed" id="speed"></div>
+    </div>
+
+    <a href="#" id="downloadLink" class="download-link" download>💾 下载文件</a>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/simple-peer@9.11.1/simplepeer.min.js"></script>
+  <script>
+    // 配置
+    const SIGNALING_SERVER = 'ws://192.168.99.153:9000';
+
+    // 状态
+    let peer = null;
+    let ws = null;
+    let receivedChunks = [];
+    let fileMetadata = null;
+    let receivedBytes = 0;
+    let startTime = 0;
+
+    // UI 元素
+    const codeInput = document.getElementById('codeInput');
+    const connectBtn = document.getElementById('connectBtn');
+    const fileInfo = document.getElementById('fileInfo');
+    const fileName = document.getElementById('fileName');
+    const fileSize = document.getElementById('fileSize');
+    const statusText = document.getElementById('statusText');
+    const progressBar = document.getElementById('progressBar');
+    const progressFill = document.getElementById('progressFill');
+    const speed = document.getElementById('speed');
+    const downloadLink = document.getElementById('downloadLink');
+
+    // 连接按钮
+    connectBtn.addEventListener('click', () => {
+      const code = codeInput.value.trim();
+      if (code.length !== 6 || !/^\d{6}$/.test(code)) {
+        updateStatus('请输入 6 位数字配对码', 'error');
+        return;
+      }
+
+      connectBtn.disabled = true;
+      codeInput.disabled = true;
+      connectSignalingServer(code);
+    });
+
+    // Enter 键触发连接
+    codeInput.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') {
+        connectBtn.click();
+      }
+    });
+
+    // 只允许输入数字
+    codeInput.addEventListener('input', (e) => {
+      e.target.value = e.target.value.replace(/[^0-9]/g, '');
+    });
+
+    // 连接信令服务器
+    function connectSignalingServer(pairingCode) {
+      updateStatus('正在连接到服务器...');
+
+      ws = new WebSocket(SIGNALING_SERVER);
+
+      ws.onopen = () => {
+        console.log('✅ 已连接到信令服务器');
+        // 注册为接收方
+        ws.send(JSON.stringify({
+          type: 'register',
+          pairingCode: pairingCode,
+          role: 'receiver'
+        }));
+        updateStatus('已连接到服务器，等待发送方...');
+      };
+
+      ws.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+        handleSignalingMessage(data);
+      };
+
+      ws.onerror = (error) => {
+        console.error('❌ 信令服务器错误:', error);
+        updateStatus('信令服务器连接失败', 'error');
+        connectBtn.disabled = false;
+        codeInput.disabled = false;
+      };
+
+      ws.onclose = () => {
+        console.log('❌ 信令服务器断开');
+        if (!peer || !peer.connected) {
+          updateStatus('已断开连接', 'error');
+          connectBtn.disabled = false;
+          codeInput.disabled = false;
+        }
+      };
+    }
+
+    // 处理信令消息
+    function handleSignalingMessage(data) {
+      console.log('📨 收到信令消息:', data.type);
+
+      switch (data.type) {
+        case 'registered':
+          console.log('✅ 已注册为接收方');
+          break;
+
+        case 'ready':
+          updateStatus('发送方已连接，建立 P2P 连接...', 'success');
+          initializePeer();
+          break;
+
+        case 'signal':
+          if (peer) {
+            peer.signal(data.signal);
+          }
+          break;
+      }
+    }
+
+    // 初始化 WebRTC 连接
+    function initializePeer() {
+      peer = new SimplePeer({
+        initiator: false,
+        trickle: true
+      });
+
+      peer.on('signal', (signal) => {
+        // 发送信令数据给信令服务器
+        const code = codeInput.value.trim();
+        ws.send(JSON.stringify({
+          type: 'signal',
+          pairingCode: code,
+          role: 'receiver',
+          signal: signal
+        }));
+      });
+
+      peer.on('connect', () => {
+        console.log('✅ P2P 连接建立成功！');
+        updateStatus('P2P 连接已建立，等待接收文件...', 'success');
+      });
+
+      peer.on('data', (data) => {
+        handleReceivedData(data);
+      });
+
+      peer.on('error', (err) => {
+        console.error('❌ P2P 错误:', err);
+        updateStatus('连接错误: ' + err.message, 'error');
+        connectBtn.disabled = false;
+        codeInput.disabled = false;
+      });
+    }
+
+    // 处理接收到的数据
+    function handleReceivedData(data) {
+      console.log('📦 收到数据:', {
+        type: data.constructor.name,
+        size: data.byteLength || data.length || 0
+      });
+
+      // 先尝试解析为 JSON（元数据或结束标记）
+      let isJSON = false;
+      let message = null;
+
+      try {
+        // 尝试将数据转换为字符串并解析JSON
+        const str = typeof data === 'string' ? data :
+                    data instanceof ArrayBuffer ? new TextDecoder().decode(data) :
+                    data.toString();
+        message = JSON.parse(str);
+        isJSON = true;
+      } catch (e) {
+        // 不是 JSON，视为二进制文件数据
+        isJSON = false;
+      }
+
+      if (isJSON && message) {
+        // JSON 消息（元数据或结束标记）
+        console.log('📨 JSON 消息:', message);
+
+        if (message.type === 'metadata') {
+          // 文件元数据
+          fileMetadata = message;
+          fileName.textContent = message.name;
+          fileSize.textContent = formatFileSize(message.size);
+          fileInfo.classList.add('show');
+          progressBar.classList.add('show');
+          speed.classList.add('show');
+
+          receivedChunks = [];
+          receivedBytes = 0;
+          startTime = Date.now();
+
+          console.log('📝 开始接收文件:', message.name, formatFileSize(message.size));
+          updateStatus('开始接收文件...');
+
+        } else if (message.type === 'end') {
+          // 接收完成
+          console.log('🏁 收到结束标记');
+          completeFileReceive();
+        }
+
+      } else {
+        // 二进制文件数据块
+        // 转换为 ArrayBuffer（如果需要）
+        let arrayBuffer;
+        if (data instanceof ArrayBuffer) {
+          arrayBuffer = data;
+        } else if (data.buffer instanceof ArrayBuffer) {
+          // Buffer 或 Uint8Array
+          arrayBuffer = data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength);
+        } else {
+          console.error('❌ 未知的数据类型:', data);
+          return;
+        }
+
+        receivedChunks.push(arrayBuffer);
+        receivedBytes += arrayBuffer.byteLength;
+
+        if (fileMetadata) {
+          // 更新进度
+          const progress = (receivedBytes / fileMetadata.size) * 100;
+          progressFill.style.width = progress + '%';
+
+          // 计算速度
+          const elapsed = (Date.now() - startTime) / 1000;
+          const speedValue = receivedBytes / elapsed;
+          speed.textContent = `速度: ${formatFileSize(speedValue)}/s`;
+
+          updateStatus(`接收中... ${progress.toFixed(1)}%`);
+        }
+      }
+    }
+
+    // 完成文件接收
+    function completeFileReceive() {
+      console.log('🏁 完成文件接收');
+      console.log('   fileMetadata:', fileMetadata);
+      console.log('   receivedChunks.length:', receivedChunks.length);
+      console.log('   receivedBytes:', receivedBytes);
+
+      if (!fileMetadata) {
+        updateStatus('接收失败：缺少文件元数据', 'error');
+        console.error('❌ 没有文件元数据');
+        return;
+      }
+
+      if (receivedChunks.length === 0) {
+        updateStatus('接收失败：无数据块', 'error');
+        console.error('❌ receivedChunks 为空');
+        return;
+      }
+
+      // 合并所有数据块
+      const blob = new Blob(receivedChunks, { type: fileMetadata.mimeType });
+
+      console.log('✅ 创建 Blob:', {
+        size: blob.size,
+        type: blob.type,
+        expectedSize: fileMetadata.size
+      });
+
+      // 创建下载链接
+      const url = URL.createObjectURL(blob);
+      downloadLink.href = url;
+      downloadLink.download = fileMetadata.name;
+      downloadLink.classList.add('show');
+
+      updateStatus('文件接收完成！', 'success');
+      progressFill.style.width = '100%';
+
+      console.log('✅ 文件接收完成');
+      console.log('   文件名:', fileMetadata.name);
+      console.log('   预期大小:', formatFileSize(fileMetadata.size));
+      console.log('   实际大小:', formatFileSize(blob.size));
+      console.log('   接收字节:', receivedBytes);
+    }
+
+    // 工具函数
+    function updateStatus(text, type = '') {
+      statusText.textContent = text;
+      statusText.className = 'text' + (type ? ' ' + type : '');
+    }
+
+    function formatFileSize(bytes) {
+      if (bytes < 1024) return bytes + ' B';
+      if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(2) + ' KB';
+      if (bytes < 1024 * 1024 * 1024) return (bytes / 1024 / 1024).toFixed(2) + ' MB';
+      return (bytes / 1024 / 1024 / 1024).toFixed(2) + ' GB';
+    }
+  </script>
+</body>
+</html>

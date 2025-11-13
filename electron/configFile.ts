@@ -5,6 +5,7 @@
 import { app } from 'electron'
 import { join } from 'path'
 import { existsSync, readFileSync, writeFileSync } from 'fs'
+import { networkInterfaces } from 'os'
 
 /**
  * 服务端配置接口
@@ -16,13 +17,61 @@ export interface ServerConfig {
 }
 
 /**
- * 默认配置
+ * 获取本机局域网 IP 地址
  */
-const DEFAULT_CONFIG: ServerConfig = {
-  apiBaseUrl: 'http://localhost:8000',
-  wsBaseUrl: 'ws://localhost:8000',
-  environment: 'development',
+function getLocalIPAddress(): string {
+  const interfaces = networkInterfaces()
+
+  // 优先查找 192.168.x.x 或 10.x.x.x 网段
+  for (const name of Object.keys(interfaces)) {
+    const nets = interfaces[name]
+    if (!nets) continue
+
+    for (const net of nets) {
+      // 跳过非 IPv4 和内部地址
+      if (net.family === 'IPv4' && !net.internal) {
+        // 优先返回局域网地址
+        if (net.address.startsWith('192.168.') || net.address.startsWith('10.')) {
+          console.log('[Config] Found local IP:', net.address)
+          return net.address
+        }
+      }
+    }
+  }
+
+  // 如果没找到局域网地址，返回第一个可用的外部 IPv4 地址
+  for (const name of Object.keys(interfaces)) {
+    const nets = interfaces[name]
+    if (!nets) continue
+
+    for (const net of nets) {
+      if (net.family === 'IPv4' && !net.internal) {
+        console.log('[Config] Found IP:', net.address)
+        return net.address
+      }
+    }
+  }
+
+  console.warn('[Config] No local IP found, using localhost')
+  return 'localhost'
 }
+
+/**
+ * 默认配置（生产环境打包时会自动使用本机 IP）
+ */
+function getDefaultConfig(): ServerConfig {
+  // 在生产环境打包时，使用本机局域网 IP
+  const shouldUseLocalIP = !process.env.VITE_DEV_SERVER_URL
+  const host = shouldUseLocalIP ? getLocalIPAddress() : 'localhost'
+
+  return {
+    apiBaseUrl: `http://${host}:8000`,
+    wsBaseUrl: `ws://${host}:8000`,
+    environment: 'development',
+  }
+}
+
+const DEFAULT_CONFIG: ServerConfig = getDefaultConfig()
 
 /**
  * 配置文件路径
@@ -91,6 +140,9 @@ function parseIniFile(content: string): ServerConfig {
 function generateIniContent(config: ServerConfig): string {
   return `# 盛世云图客户端 - 服务端接口配置
 # 修改此文件后需要重启客户端才能生效
+#
+# 注意：打包时自动使用本机局域网IP地址，方便局域网内其他电脑测试
+# 如需修改为其他地址，请直接编辑下面的配置
 
 # API 基础地址
 # 开发环境示例: http://localhost:8000

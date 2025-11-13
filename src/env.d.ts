@@ -46,7 +46,7 @@ interface ElectronAPI {
     apiBaseUrl: string
     wsBaseUrl: string
     environment: string
-  }) => void
+  }) => Promise<void>
   serverConfigReload: () => Promise<{
     apiBaseUrl: string
     wsBaseUrl: string
@@ -63,6 +63,37 @@ interface ElectronAPI {
   // Event listeners
   onPauseAllTasks: (callback: () => void) => void
   onOpenSettings: (callback: () => void) => void
+
+  // File system operations (for dependency scanning)
+  pathExists: (path: string) => Promise<boolean>
+  readDirectory: (path: string, recursive?: boolean) => Promise<File[]>
+  pathDirname: (path: string) => Promise<string>
+  pathBasename: (path: string) => Promise<string>
+  readFile: (path: string) => Promise<ArrayBuffer>
+  selectDirectory: (options?: { title?: string; defaultPath?: string }) => Promise<{
+    canceled: boolean
+    filePaths: string[]
+  }>
+
+  // Maya dependency scanning (using mayapy)
+  scanMayaDependencies: (sceneFilePath: string) => Promise<{
+    success: boolean
+    error?: string
+    textures: Array<{ path: string; node: string }>
+    caches: Array<{ path: string; node: string; type: string }>
+    references: Array<{ path: string }>
+    xgen: Array<{ path: string; node: string }>
+    other: Array<{ path: string; node: string; type: string }>
+  }>
+
+  // Maya CLI (Python)
+  mayaCliPackage: (payload: { scene: string; outputDir?: string; serverRoot: string; outZip?: string; logPath?: string }) => Promise<any>
+
+  // Auto update
+  checkForUpdates: () => Promise<{ success: boolean; updateInfo?: any; error?: string }>
+  downloadUpdate: () => Promise<{ success: boolean; error?: string }>
+  installUpdate: () => void
+  onUpdateStatus: (callback: (status: any) => void) => void
 }
 
 interface Window {

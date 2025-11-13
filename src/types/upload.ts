@@ -16,6 +16,7 @@ export enum UploadStatus {
 export interface UploadTask {
   id: string                    // 任务ID
   file: File                    // 文件对象
+  packagedZipPath?: string      // 打包后 ZIP 的本地路径，方便续传
   fileName: string              // 文件名
   fileSize: number              // 文件大小
   fileType: string              // 文件类型
@@ -35,6 +36,7 @@ export interface UploadTask {
   serverTaskId?: string         // 服务端任务ID（UploadTask.id）
   serverFileId?: string         // 服务端文件ID（TaskFile.id）
   md5?: string                  // 文件MD5哈希
+  statusMessage?: string        // 状态提示信息（如：正在分析文件、正在打包依赖）
 }
 
 // STS 凭证响应
@@ -86,3 +88,38 @@ export interface UploadStatistics {
   uploadedSize: number          // 已上传大小
   averageSpeed: number          // 平均速度
 }
+
+// Maya 场景打包信息
+export interface PackageInfo {
+  status: 'analyzing' | 'packaging' | 'completed' | 'error'
+  progress?: string
+  progressPercent?: number
+  progressLogs?: string[]
+  sceneFileName: string
+  sceneFileSize: number
+  totalDependencies?: number
+  uploadJsonPath?: string
+  renderSettingsPath?: string
+  uploadJsonData?: any
+  renderSettings?: any
+  serverRoot?: string
+  dependencies: {
+    textureCount: number
+    textureSize: number
+    cacheCount: number
+    cacheSize: number
+    referenceCount: number
+    referenceSize: number
+    xgenCount: number
+    xgenSize: number
+    otherCount?: number
+    otherSize?: number
+  }
+  zipFileName?: string
+  zipFileSize?: number
+  zipFilePath?: string
+  error?: string
+}
+
+// 打包确认回调
+export type PackageConfirmCallback = (packageInfo: PackageInfo) => Promise<boolean>

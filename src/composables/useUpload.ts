@@ -3,8 +3,7 @@
  */
 import { ref, computed } from 'vue'
 import { uploadManager } from '@/utils/upload/UploadManager'
-import type { UploadTask } from '@/types/upload'
-import type { PreCheckResponse } from '@/api/upload'
+import type { UploadTask, PackageConfirmCallback } from '@/types/upload'
 
 export function useUpload() {
   const tasks = ref<UploadTask[]>([])
@@ -17,12 +16,37 @@ export function useUpload() {
     updateTrigger.value++
   }
 
+  // 初始化时恢复任务
+  const initializeFromStorage = () => {
+    try {
+      const userStr = localStorage.getItem('user')
+      if (userStr) {
+        const user = JSON.parse(userStr)
+        console.log('Restoring upload tasks for user:', user.id)
+        uploadManager.loadTasksFromStorage(user.id)
+        updateTasks()
+      }
+    } catch (error) {
+      console.error('Failed to initialize from storage:', error)
+    }
+  }
+
+  // 初始化恢复
+  initializeFromStorage()
+
   // 每秒更新一次
   setInterval(updateTasks, 1000)
   updateTasks()
 
   // 统计信息
   const statistics = computed(() => uploadManager.getStatistics())
+
+  /**
+   * 设置打包确认回调
+   */
+  const setPackageConfirmCallback = (callback: PackageConfirmCallback) => {
+    uploadManager.setPackageConfirmCallback(callback)
+  }
 
   /**
    * 添加文件
@@ -33,7 +57,6 @@ export function useUpload() {
     driveId: string,
     onMD5Progress?: (completed: number, total: number) => void,
     onDuplicateDetected?: (duplicatedCount: number, savedSize: number) => void,
-    onPreCheckResult?: (result: PreCheckResponse) => Promise<boolean>
   ) => {
     // 批量添加文件并创建服务器端任务
     await uploadManager.addBatchTask(
@@ -41,8 +64,7 @@ export function useUpload() {
       taskId,
       driveId,
       onMD5Progress,
-      onDuplicateDetected,
-      onPreCheckResult
+      onDuplicateDetected
     )
     updateTasks()
   }
@@ -133,5 +155,6 @@ export function useUpload() {
     formatFileSize,
     formatSpeed,
     formatTime,
+    setPackageConfirmCallback,
   }
 }

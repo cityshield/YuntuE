@@ -1,4 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
+import type { OpenDialogOptions, OpenDialogReturnValue } from 'electron'
 
 // 预加载脚本：在渲染进程中暴露安全的 API
 
@@ -38,7 +39,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // 服务端配置管理
   serverConfigGet: () => ipcRenderer.invoke('server-config-get'),
   serverConfigGetPath: () => ipcRenderer.invoke('server-config-get-path'),
-  serverConfigSet: (config: any) => ipcRenderer.send('server-config-set', config),
+  serverConfigSet: (config: any) => ipcRenderer.invoke('server-config-set', config),
   serverConfigReload: () => ipcRenderer.invoke('server-config-reload'),
   onServerConfigUpdated: (callback: (config: any) => void) =>
     ipcRenderer.on('server-config-updated', (_event, config) => callback(config)),
@@ -46,6 +47,30 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // 监听主进程消息
   onPauseAllTasks: (callback: () => void) => ipcRenderer.on('pause-all-tasks', callback),
   onOpenSettings: (callback: () => void) => ipcRenderer.on('open-settings', callback),
+
+  // 文件系统操作（用于依赖扫描）
+  pathExists: (path: string) => ipcRenderer.invoke('path-exists', path),
+  readDirectory: (path: string, recursive?: boolean) =>
+    ipcRenderer.invoke('read-directory', path, recursive),
+  pathDirname: (path: string) => ipcRenderer.invoke('path-dirname', path),
+  pathBasename: (path: string) => ipcRenderer.invoke('path-basename', path),
+  readFile: (path: string) => ipcRenderer.invoke('read-file', path),
+  selectDirectory: (options?: OpenDialogOptions) => ipcRenderer.invoke('dialog:select-directory', options),
+
+  // Maya 依赖扫描（使用 mayapy）
+  scanMayaDependencies: (sceneFilePath: string) =>
+    ipcRenderer.invoke('scan-maya-dependencies', sceneFilePath),
+
+  // Maya CLI（get_maya_plug4）
+  mayaCliPackage: (payload: { scene: string; outputDir?: string; serverRoot: string; outZip?: string; logPath?: string }) =>
+    ipcRenderer.invoke('maya-cli:package', payload),
+
+  // 自动更新
+  checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),
+  downloadUpdate: () => ipcRenderer.invoke('download-update'),
+  installUpdate: () => ipcRenderer.invoke('install-update'),
+  onUpdateStatus: (callback: (status: any) => void) =>
+    ipcRenderer.on('update-status', (_event, status) => callback(status)),
 })
 
 // TypeScript 类型声明
@@ -71,11 +96,31 @@ export interface ElectronAPI {
   configReset: () => void
   serverConfigGet: () => Promise<any>
   serverConfigGetPath: () => Promise<string>
-  serverConfigSet: (config: any) => void
+  serverConfigSet: (config: any) => Promise<void>
   serverConfigReload: () => Promise<any>
   onServerConfigUpdated: (callback: (config: any) => void) => void
   onPauseAllTasks: (callback: () => void) => void
   onOpenSettings: (callback: () => void) => void
+  pathExists: (path: string) => Promise<boolean>
+  readDirectory: (path: string, recursive?: boolean) => Promise<File[]>
+  pathDirname: (path: string) => Promise<string>
+  pathBasename: (path: string) => Promise<string>
+  readFile: (path: string) => Promise<ArrayBuffer>
+  selectDirectory: (options?: OpenDialogOptions) => Promise<OpenDialogReturnValue>
+  scanMayaDependencies: (sceneFilePath: string) => Promise<{
+    success: boolean
+    error?: string
+    textures: Array<{ path: string; node: string }>
+    caches: Array<{ path: string; node: string; type: string }>
+    references: Array<{ path: string }>
+    xgen: Array<{ path: string; node: string }>
+    other: Array<{ path: string; node: string; type: string }>
+  }>
+  mayaCliPackage: (payload: { scene: string; outputDir?: string; serverRoot: string; outZip?: string; logPath?: string }) => Promise<any>
+  checkForUpdates: () => Promise<{ success: boolean; updateInfo?: any; error?: string }>
+  downloadUpdate: () => Promise<{ success: boolean; error?: string }>
+  installUpdate: () => void
+  onUpdateStatus: (callback: (status: any) => void) => void
 }
 
 declare global {

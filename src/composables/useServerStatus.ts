@@ -213,7 +213,8 @@ export function useServerStatus() {
         status.value.error = 'WebSocket 服务器连接失败'
       }
     } catch (error: any) {
-      status.value.error = error.message || '连接检查失败'
+      const errorMsg = error?.message || error?.toString() || '连接检查失败'
+      status.value.error = errorMsg
       console.error('[ServerStatus] 连接检查异常:', error)
     } finally {
       status.value.checking = false

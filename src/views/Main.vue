@@ -2,6 +2,8 @@
   <div class="main-container">
     <!-- 设置对话框 -->
     <SettingsDialog v-model="showSettingsDialog" />
+    <!-- 更新对话框 -->
+    <UpdateDialog ref="updateDialogRef" />
     <!-- 自定义标题栏 -->
     <div class="titlebar titlebar-drag-region">
       <div class="titlebar-left">
@@ -121,10 +123,12 @@ import {
   SwitchButton,
 } from '@element-plus/icons-vue'
 import SettingsDialog from './Settings/SettingsDialog.vue'
+import UpdateDialog from '@/components/UpdateDialog.vue'
 
 const router = useRouter()
 const userStore = useUserStore()
 const showSettingsDialog = ref(false)
+const updateDialogRef = ref<InstanceType<typeof UpdateDialog> | null>(null)
 
 // 窗口控制
 const minimizeWindow = () => {
@@ -152,7 +156,8 @@ const handleSettingsCommand = (command: string) => {
       ElMessage.info('控制台功能开发中')
       break
     case 'update':
-      ElMessage.info('检查更新功能开发中')
+      // 手动检查更新
+      updateDialogRef.value?.checkForUpdates()
       break
     case 'about':
       ElMessage.info('关于我们功能开发中')

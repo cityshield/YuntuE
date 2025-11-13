@@ -34,6 +34,7 @@ export interface AppConfig {
   autoLaunch: boolean
   language: string
   theme: 'dark' | 'light'
+
 }
 
 const DEFAULT_CONFIG: AppConfig = {

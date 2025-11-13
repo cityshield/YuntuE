@@ -34,6 +34,14 @@ export interface UploadManifest {
 // 创建上传任务请求
 export interface CreateUploadTaskRequest {
   upload_manifest: UploadManifest
+  scene_metadata?: {
+    scenes: Array<{
+      fileName: string
+      uploadJson: any
+      renderSettings: any
+      serverRoot: string
+    }>
+  }
 }
 
 // 创建上传任务响应
