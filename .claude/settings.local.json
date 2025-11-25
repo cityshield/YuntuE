@@ -1,0 +1,25 @@
+{
+  "env": {
+    "LANG": "zh_CN.UTF-8",
+    "LANGUAGE": "zh_CN:zh",
+    "LC_ALL": "zh_CN.UTF-8",
+    "CLAUDE_RESPONSE_LANGUAGE": "Chinese"
+  },
+  "permissions": {
+    "allow": [
+      "WebSearch",
+      "WebFetch(domain:commons.wikimedia.org)",
+      "Read(/Users/pretty/Documents/Workspace/YuntuE/public/logos/**)",
+      "Bash(pkill:*)",
+      "Bash(npm run electron:dev:*)",
+      "Bash(lsof:*)",
+      "Bash(node -e:*)",
+      "Bash(./node_modules/.bin/electron:*)",
+      "Bash(npx vue-tsc:*)",
+      "Bash(npm run type-check:*)",
+      "Bash(killall node:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

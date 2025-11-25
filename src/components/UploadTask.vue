@@ -67,8 +67,13 @@
           {{ getStatusText(status) }}
         </span>
 
+        <!-- 状态提示信息（打包依赖等） -->
+        <span v-if="task.statusMessage" class="status-message">
+          {{ task.statusMessage }}
+        </span>
+
         <!-- 上传速度和剩余时间 -->
-        <span v-if="status === 'uploading'" class="status-info">
+        <span v-else-if="status === 'uploading'" class="status-info">
           {{ formatSpeed(speed) }} · 剩余 {{ formatTime(remainingTime) }}
         </span>
 
@@ -298,6 +303,11 @@ const formatTime = (seconds: number): string => {
           background-color: rgba(144, 147, 153, 0.1);
           color: #909399;
         }
+      }
+
+      .status-message {
+        color: $primary-color;
+        font-weight: 500;
       }
 
       .status-info {

@@ -138,8 +138,52 @@
         <!-- 网络设置 -->
         <div v-show="activeMenu === 'network'" class="settings-panel">
           <h3 class="panel-title">网络设置</h3>
-          <p class="panel-desc">网络相关设置</p>
-          <div class="coming-soon">功能开发中...</div>
+          <p class="panel-desc">配置服务器连接地址和环境信息</p>
+
+          <div class="setting-section">
+            <div class="section-label">服务器地址</div>
+            <div class="form-row">
+              <label>API 地址:</label>
+              <el-input
+                v-model="networkSettings.apiBaseUrl"
+                placeholder="http://localhost:8000"
+                clearable
+              />
+            </div>
+            <div class="section-hint">API 接口的基础地址，例如: http://192.168.99.93:8000</div>
+          </div>
+
+          <div class="setting-section">
+            <div class="form-row">
+              <label>WebSocket 地址:</label>
+              <el-input
+                v-model="networkSettings.wsBaseUrl"
+                placeholder="ws://localhost:8000"
+                clearable
+              />
+            </div>
+            <div class="section-hint">WebSocket 连接的基础地址，例如: ws://192.168.99.93:8000</div>
+          </div>
+
+          <div class="setting-section">
+            <div class="section-label">运行环境</div>
+            <el-radio-group v-model="networkSettings.environment">
+              <el-radio label="development">开发环境</el-radio>
+              <el-radio label="staging">测试环境</el-radio>
+              <el-radio label="production">生产环境</el-radio>
+            </el-radio-group>
+            <div class="section-hint">当前客户端连接的服务器环境</div>
+          </div>
+
+          <div class="setting-section">
+            <div class="section-label">配置文件位置</div>
+            <div class="config-path-info">
+              <el-button text type="primary" @click="openConfigPath">
+                打开配置文件目录
+              </el-button>
+            </div>
+            <div class="section-hint">你也可以直接编辑 config.ini 文件来修改配置</div>
+          </div>
         </div>
 
         <!-- 计划任务 -->
@@ -168,7 +212,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import {
   Setting,
@@ -180,8 +224,12 @@ import {
   Grid,
   FolderOpened,
 } from '@element-plus/icons-vue'
+import { useServerConfig } from '@/composables/useServerConfig'
 
 const dialogVisible = defineModel<boolean>()
+
+// 使用服务器配置 composable
+const { config: serverConfig, loadConfig, saveConfig } = useServerConfig()
 
 const activeMenu = ref('general')
 
@@ -219,13 +267,61 @@ const downloadSettings = reactive({
   strategy: 'default',
 })
 
+const networkSettings = reactive({
+  apiBaseUrl: '',
+  wsBaseUrl: '',
+  environment: 'development' as 'development' | 'staging' | 'production',
+})
+
+// 加载服务器配置
+onMounted(async () => {
+  await loadConfig()
+  if (serverConfig.value) {
+    networkSettings.apiBaseUrl = serverConfig.value.apiBaseUrl
+    networkSettings.wsBaseUrl = serverConfig.value.wsBaseUrl
+    networkSettings.environment = serverConfig.value.environment
+  }
+})
+
 const selectFolder = () => {
   ElMessage.info('选择文件夹功能需要 Electron API 支持')
 }
 
-const handleSave = () => {
-  ElMessage.success('设置已保存')
-  dialogVisible.value = false
+const openConfigPath = async () => {
+  try {
+    if (!window.electronAPI) {
+      ElMessage.error('Electron API 不可用')
+      return
+    }
+    const configPath = await (window.electronAPI as any).serverConfigGetPath()
+    const pathModule = require('path')
+    const configDir = pathModule.dirname(configPath)
+
+    // 使用 Electron 打开文件夹
+    ;(window.electronAPI as any).openExternal(`file://${configDir}`)
+  } catch (error) {
+    console.error('打开配置文件目录失败:', error)
+    ElMessage.error('打开配置文件目录失败')
+  }
+}
+
+const handleSave = async () => {
+  try {
+    // 保存服务器配置
+    if (networkSettings.apiBaseUrl || networkSettings.wsBaseUrl) {
+      await saveConfig({
+        apiBaseUrl: networkSettings.apiBaseUrl,
+        wsBaseUrl: networkSettings.wsBaseUrl,
+        environment: networkSettings.environment,
+      })
+    }
+
+    ElMessage.success('设置已保存')
+    dialogVisible.value = false
+  } catch (error) {
+    console.error('保存设置失败:', error)
+    ElMessage.error('保存设置失败，请重试')
+  }
 }
 
 const handleCancel = () => {

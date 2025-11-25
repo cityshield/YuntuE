@@ -29,75 +29,120 @@
       <el-button :icon="Refresh" @click="loadTasks" :loading="loading">刷新</el-button>
     </div>
 
-    <!-- 任务列表表格 -->
-    <el-table
-      v-loading="loading"
-      :data="tasks"
-      style="width: 100%"
-      class="task-table"
-      height="calc(100vh - 340px)"
-      @row-contextmenu="handleContextMenu"
-      element-loading-text="加载中..."
-    >
+    <!-- 任务列表卡片 -->
+    <div v-loading="loading" class="task-list" element-loading-text="加载中...">
       <!-- 空数据占位 -->
-      <template #empty>
-        <div class="empty-data">
-          <el-icon class="empty-icon"><DocumentDelete /></el-icon>
-          <p class="empty-text">当前没有渲染任务</p>
-          <p class="empty-subtext">快去上传一个场景文件开始渲染吧</p>
-          <el-button type="primary" @click="goToUpload" class="upload-btn">
-            <el-icon><Upload /></el-icon>
-            <span>去上传</span>
+      <div v-if="tasks.length === 0 && !loading" class="empty-data">
+        <el-icon class="empty-icon"><DocumentDelete /></el-icon>
+        <p class="empty-text">当前没有渲染任务</p>
+        <p class="empty-subtext">快去上传一个场景文件开始渲染吧</p>
+        <el-button type="primary" @click="goToUpload" class="upload-btn">
+          <el-icon><Upload /></el-icon>
+          <span>去上传</span>
+        </el-button>
+      </div>
+
+      <!-- 任务卡片列表 -->
+      <div
+        v-for="task in tasks"
+        :key="task.id"
+        class="task-card"
+        @click="openTaskDetail(task)"
+        @contextmenu.prevent="handleContextMenu(task, null, $event)"
+      >
+        <!-- 缩略图 -->
+        <div class="task-thumbnail">
+          <img
+            :src="getTaskThumbnail(task)"
+            :alt="task.task_name"
+            class="thumbnail-image"
+          />
+        </div>
+
+        <!-- 任务信息 -->
+        <div class="task-info">
+          <!-- 第一行：场景名 + 作业ID -->
+          <div class="info-row info-header">
+            <div class="scene-name">
+              <img :src="getModelingSoftwareLogo(task)" class="modeling-software-icon" :alt="task.renderer" />
+              <span class="task-name">{{ task.task_name }}</span>
+            </div>
+            <div class="task-id-wrapper">
+              <span class="task-id-label">任务ID</span>
+              <span class="task-id">{{ formatTaskId(task.id) }}</span>
+              <el-icon class="copy-icon" @click.stop="copyTaskId(task.id)">
+                <DocumentCopy />
+              </el-icon>
+            </div>
+          </div>
+
+          <!-- 第二行：状态 + 帧范围 + 渲染进度 -->
+          <div class="info-row info-middle">
+            <el-tag :type="getStatusType(task.status)" size="small" class="status-tag">
+              {{ getStatusLabel(task.status) }}
+            </el-tag>
+            <span class="info-item">帧范围: {{ getFrameRange(task) }}</span>
+            <span class="info-item">已渲染: {{ getRenderingProgress(task) }}</span>
+          </div>
+
+          <!-- 第三行：进度条 + 创建时间 -->
+          <div class="info-row info-bottom">
+            <div class="progress-wrapper">
+              <el-progress
+                :percentage="task.progress"
+                :color="getProgressColor(task.progress)"
+                :show-text="false"
+                :stroke-width="6"
+              />
+              <span class="progress-text">{{ task.progress }}%</span>
+            </div>
+            <span class="create-time">{{ formatDate(task.created_at) }}</span>
+          </div>
+        </div>
+
+        <!-- 右侧操作区 -->
+        <div class="task-actions" @click.stop>
+          <!-- 主按钮：开始/暂停 -->
+          <el-button
+            v-if="canStartTask(task)"
+            type="primary"
+            size="large"
+            class="action-btn"
+            @click="handleQuickAction(task, 'start')"
+          >
+            <el-icon><VideoPlay /></el-icon>
+            开始
+          </el-button>
+          <el-button
+            v-else-if="canPauseTask(task)"
+            type="warning"
+            size="large"
+            class="action-btn"
+            @click="handleQuickAction(task, 'pause')"
+          >
+            <el-icon><VideoPause /></el-icon>
+            暂停
+          </el-button>
+          <el-button
+            v-else
+            type="info"
+            size="large"
+            class="action-btn"
+            disabled
+          >
+            {{ getStatusLabel(task.status) }}
           </el-button>
         </div>
-      </template>
+      </div>
 
-      <el-table-column prop="task_name" label="场景名" min-width="200">
-        <template #default="{ row }">
-          <div class="scene-name">
-            <el-icon size="20" style="margin-right: 8px">
-              <Film v-if="row.renderer?.toLowerCase().includes('arnold')" />
-              <Box v-else />
-            </el-icon>
-            {{ row.task_name }}
-          </div>
-        </template>
-      </el-table-column>
-      <el-table-column prop="id" label="作业ID" width="120">
-        <template #default="{ row }">
-          <span class="task-id">{{ formatTaskId(row.id) }}</span>
-        </template>
-      </el-table-column>
-      <el-table-column prop="status" label="状态" width="150">
-        <template #default="{ row }">
-          <el-tag :type="getStatusType(row.status)" size="small">
-            {{ getStatusLabel(row.status) }}
-          </el-tag>
-        </template>
-      </el-table-column>
-      <el-table-column prop="progress" label="完成进度" width="200">
-        <template #default="{ row }">
-          <div class="progress-cell">
-            <el-progress :percentage="row.progress" :color="getProgressColor(row.progress)" />
-          </div>
-        </template>
-      </el-table-column>
-      <el-table-column label="渲染中" width="120">
-        <template #default="{ row }">
-          <span>{{ getRenderingProgress(row) }}</span>
-        </template>
-      </el-table-column>
-      <el-table-column label="帧范围" width="150">
-        <template #default="{ row }">
-          <span>{{ getFrameRange(row) }}</span>
-        </template>
-      </el-table-column>
-      <el-table-column prop="created_at" label="创建时间" width="180">
-        <template #default="{ row }">
-          <span>{{ formatDate(row.created_at) }}</span>
-        </template>
-      </el-table-column>
-    </el-table>
+      <!-- 加载更多提示 -->
+      <div v-if="hasMore && !loading" class="load-more-hint">
+        <span>滚动加载更多...</span>
+      </div>
+      <div v-if="!hasMore && tasks.length > 0" class="no-more-hint">
+        <span>已加载全部 {{ tasks.length }} 条数据</span>
+      </div>
+    </div>
 
     <!-- 右键菜单 -->
     <div
@@ -191,28 +236,17 @@
       </div>
     </div>
 
-    <!-- 分页 -->
-    <div class="pagination">
-      <span class="total">共 {{ total }} 条</span>
-      <el-pagination
-        layout="prev, pager, next, jumper"
-        :total="total"
-        :page-size="pageSize"
-        v-model:current-page="currentPage"
-        @current-change="handlePageChange"
-      />
-    </div>
+    <!-- 任务详情对话框 -->
+    <TaskDetailDialog v-model="showTaskDetail" :task="selectedTaskForDetail" />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   Search,
-  Film,
-  Box,
   Refresh,
   VideoPlay,
   VideoPause,
@@ -231,9 +265,11 @@ import {
   ArrowRight,
   Upload,
   DocumentDelete,
+  DocumentCopy,
 } from '@element-plus/icons-vue'
 import { tasksAPI } from '@/api/tasks'
-import { TaskStatus, TaskStatusLabels, type TaskResponse } from '@/types/task'
+import { TaskStatus, TaskStatusLabels, TaskPriority, type TaskResponse } from '@/types/task'
+import TaskDetailDialog from '@/components/TaskDetailDialog.vue'
 
 const router = useRouter()
 const activeTab = ref('tasks')
@@ -244,8 +280,10 @@ const handleTabChange = (tabName: string) => {
     router.push('/main/upload')
   } else if (tabName === 'tasks') {
     router.push('/main/tasks')
+  } else if (tabName === 'download') {
+    router.push('/main/downloads')
   } else {
-    ElMessage.info(`${tabName === 'analysis' ? '分析列表' : '我的下载'}功能开发中`)
+    ElMessage.info('分析列表功能开发中')
   }
 }
 
@@ -261,14 +299,168 @@ const currentPage = ref(1)
 const pageSize = ref(20)
 const total = ref(0)
 const loading = ref(false)
+const hasMore = ref(true)
 
 // 任务列表数据
 const tasks = ref<TaskResponse[]>([])
 
-// 加载任务列表
-const loadTasks = async () => {
+// 全部数据缓存（Mock模式用）
+let allMockTasks: TaskResponse[] = []
+
+// Mock 数据开关（用于测试，当后端无数据时）
+const USE_MOCK_DATA = true
+
+// Mock 测试数据生成器
+const generateMockTasks = (count: number = 35): TaskResponse[] => {
+  const tasks: TaskResponse[] = []
+
+  const sceneNames = [
+    'Living_Room_Final', 'Character_Animation', 'Product_Shot', 'Outdoor_Scene',
+    'Interior_Kitchen', 'Bedroom_Night', 'Office_Space', 'Car_Showroom',
+    'Forest_Environment', 'Urban_Street', 'Sci_Fi_Corridor', 'Medieval_Castle',
+    'Modern_Apartment', 'Industrial_Factory', 'Restaurant_Interior', 'Hotel_Lobby',
+    'Swimming_Pool', 'Garden_Landscape', 'Mountain_Scene', 'Beach_Sunset',
+    'City_Skyline', 'Underground_Parking', 'Mall_Interior', 'Airport_Terminal',
+    'Stadium_Arena', 'Concert_Hall', 'Museum_Gallery', 'Library_Reading_Room',
+    'Gym_Fitness_Center', 'Spa_Wellness', 'Rooftop_Terrace', 'Warehouse_Storage',
+    'Laboratory_Research', 'Hospital_Ward', 'School_Classroom'
+  ]
+
+  const renderers = ['Arnold', 'Redshift', 'V-Ray', 'Octane', 'Corona']
+  const mayaVersions = ['2024', '2023', '2022']
+  const statuses = [
+    TaskStatus.RENDERING,
+    TaskStatus.QUEUED,
+    TaskStatus.COMPLETED,
+    TaskStatus.PAUSED,
+    TaskStatus.FAILED,
+    TaskStatus.PENDING,
+    TaskStatus.CANCELLED,
+  ]
+  const priorities = [TaskPriority.LOW, TaskPriority.NORMAL, TaskPriority.HIGH, TaskPriority.URGENT]
+  const formats = ['exr', 'png', 'jpg', 'tiff', 'tga']
+
+  for (let i = 0; i < count; i++) {
+    const status = statuses[i % statuses.length]
+    const progress =
+      status === TaskStatus.COMPLETED ? 100 :
+      status === TaskStatus.QUEUED || status === TaskStatus.PENDING ? 0 :
+      status === TaskStatus.CANCELLED ? 0 :
+      Math.floor(Math.random() * 90) + 5 // 5-95%
+
+    const sceneName = sceneNames[i % sceneNames.length]
+    const version = i > 0 ? `_v${Math.floor(i / sceneNames.length) + 1}` : ''
+    const taskName = `${sceneName}${version}`
+
+    const startFrame = Math.floor(Math.random() * 50) + 1
+    const endFrame = startFrame + Math.floor(Math.random() * 300) + 100
+    const frameStep = [1, 1, 1, 2, 3][Math.floor(Math.random() * 5)] // 大多数是1
+
+    const hoursAgo = Math.random() * 7 * 24 // 0-7天前
+    const createdAt = new Date(Date.now() - hoursAgo * 3600 * 1000)
+    const startedAt = status !== TaskStatus.PENDING && status !== TaskStatus.QUEUED
+      ? new Date(createdAt.getTime() + Math.random() * 3600 * 1000)
+      : undefined
+    const completedAt = status === TaskStatus.COMPLETED
+      ? new Date(startedAt!.getTime() + Math.random() * 10 * 3600 * 1000)
+      : undefined
+
+    const estimatedCost = Math.random() * 150 + 30
+    const actualCost = progress > 0 ? (estimatedCost * progress) / 100 : undefined
+
+    tasks.push({
+      id: `${String(i).padStart(8, '0')}-${Math.random().toString(36).substr(2, 4)}-${Math.random().toString(36).substr(2, 4)}-${Math.random().toString(36).substr(2, 4)}-${Math.random().toString(36).substr(2, 12)}`,
+      user_id: 'user-123',
+      task_name: taskName,
+      scene_file: `scenes/${taskName}.${Math.random() > 0.5 ? 'ma' : 'mb'}`,
+      maya_version: mayaVersions[i % mayaVersions.length],
+      renderer: renderers[i % renderers.length],
+      status,
+      priority: priorities[i % priorities.length],
+      progress,
+      start_frame: startFrame,
+      end_frame: endFrame,
+      frame_step: frameStep,
+      width: [1920, 2560, 3840, 1280, 1920][Math.floor(Math.random() * 5)],
+      height: [1080, 1440, 2160, 720, 1080][Math.floor(Math.random() * 5)],
+      output_path: `/renders/${sceneName.toLowerCase()}/`,
+      output_format: formats[i % formats.length],
+      estimated_cost: parseFloat(estimatedCost.toFixed(2)),
+      actual_cost: actualCost ? parseFloat(actualCost.toFixed(2)) : undefined,
+      error_message: status === TaskStatus.FAILED
+        ? ['Missing texture file', 'Out of memory', 'License error', 'Network timeout', 'Plugin not found'][i % 5]
+        : undefined,
+      created_at: createdAt.toISOString(),
+      started_at: startedAt?.toISOString(),
+      completed_at: completedAt?.toISOString(),
+      updated_at: new Date(Date.now() - Math.random() * 3600 * 1000).toISOString(),
+    })
+  }
+
+  return tasks
+}
+
+// Mock 测试数据
+const getMockTasks = (): TaskResponse[] => {
+  return generateMockTasks(35)
+}
+
+// 加载任务列表（初始加载或重新加载）
+const loadTasks = async (reset = true) => {
+  if (loading.value) return
+
   loading.value = true
   try {
+    if (reset) {
+      currentPage.value = 1
+      tasks.value = []
+      hasMore.value = true
+    }
+
+    // 如果启用 Mock 数据，直接使用本地数据
+    if (USE_MOCK_DATA) {
+      await new Promise((resolve) => setTimeout(resolve, 500)) // 模拟网络延迟
+
+      // 初始化或重新生成 Mock 数据
+      if (reset || allMockTasks.length === 0) {
+        allMockTasks = getMockTasks()
+      }
+
+      // 应用搜索过滤
+      let filteredTasks = allMockTasks
+      if (searchKeyword.value) {
+        const keyword = searchKeyword.value.toLowerCase()
+        filteredTasks = allMockTasks.filter(
+          (task) =>
+            task.task_name.toLowerCase().includes(keyword) ||
+            task.id.toLowerCase().includes(keyword)
+        )
+      }
+
+      // 懒加载分页
+      const start = (currentPage.value - 1) * pageSize.value
+      const end = start + pageSize.value
+      const newTasks = filteredTasks.slice(start, end)
+
+      if (reset) {
+        tasks.value = newTasks
+      } else {
+        tasks.value = [...tasks.value, ...newTasks]
+      }
+
+      total.value = filteredTasks.length
+      hasMore.value = end < filteredTasks.length
+
+      console.log('✅ Mock 任务列表加载成功:', {
+        total: total.value,
+        current: tasks.value.length,
+        hasMore: hasMore.value,
+        page: currentPage.value,
+      })
+      return
+    }
+
+    // 使用真实 API
     const params = {
       skip: (currentPage.value - 1) * pageSize.value,
       limit: pageSize.value,
@@ -277,12 +469,20 @@ const loadTasks = async () => {
     }
 
     const response = await tasksAPI.getTasks(params)
-    tasks.value = response.tasks
+
+    if (reset) {
+      tasks.value = response.tasks
+    } else {
+      tasks.value = [...tasks.value, ...response.tasks]
+    }
+
     total.value = response.total
+    hasMore.value = tasks.value.length < total.value
 
     console.log('✅ 任务列表加载成功:', {
       total: total.value,
-      count: tasks.value.length,
+      current: tasks.value.length,
+      hasMore: hasMore.value,
       page: currentPage.value,
     })
   } catch (error: any) {
@@ -293,22 +493,35 @@ const loadTasks = async () => {
   }
 }
 
+// 加载更多
+const loadMore = async () => {
+  if (!hasMore.value || loading.value) return
+
+  currentPage.value++
+  await loadTasks(false)
+}
+
+// 滚动监听
+const handleScroll = (e: Event) => {
+  const target = e.target as HTMLElement
+  const scrollHeight = target.scrollHeight
+  const scrollTop = target.scrollTop
+  const clientHeight = target.clientHeight
+
+  // 距离底部100px时触发加载
+  if (scrollHeight - scrollTop - clientHeight < 100) {
+    loadMore()
+  }
+}
+
 // 时间范围变化
 const handleTimeRangeChange = () => {
-  currentPage.value = 1
-  loadTasks()
+  loadTasks(true)
 }
 
 // 搜索
 const handleSearch = () => {
-  currentPage.value = 1
-  loadTasks()
-}
-
-// 分页变化
-const handlePageChange = (page: number) => {
-  currentPage.value = page
-  loadTasks()
+  loadTasks(true)
 }
 
 // 格式化任务ID（取前8位）
@@ -388,6 +601,16 @@ const canStartTask = (task: TaskResponse | null): boolean => {
 const canPauseTask = (task: TaskResponse | null): boolean => {
   if (!task) return false
   return [TaskStatus.RENDERING, TaskStatus.QUEUED].includes(task.status)
+}
+
+// 任务详情相关
+const showTaskDetail = ref(false)
+const selectedTaskForDetail = ref<TaskResponse | null>(null)
+
+// 打开任务详情
+const openTaskDetail = (task: TaskResponse) => {
+  selectedTaskForDetail.value = task
+  showTaskDetail.value = true
 }
 
 // 右键菜单相关
@@ -471,8 +694,7 @@ const handleMenuAction = async (action: string) => {
         break
 
       case 'view-details':
-        ElMessage.info(`查看任务详情: ${formatTaskId(task.id)}`)
-        // TODO: 打开任务详情对话框
+        openTaskDetail(task)
         break
 
       case 'full-speed':
@@ -510,15 +732,88 @@ const getActionName = (action: string): string => {
   return actionMap[action] || action
 }
 
+// 获取任务缩略图
+const getTaskThumbnail = (task: TaskResponse): string => {
+  // TODO: 后续从后端获取真实的缩略图路径
+  // 现在使用本地下载的缩略图（循环使用 40 张图片）
+  const thumbnailIndex = (parseInt(task.id.substring(0, 8), 36) % 40) + 1
+  return `/thumbnails/thumbnail_${String(thumbnailIndex).padStart(2, '0')}.jpg`
+}
+
+// 获取建模软件 Logo
+const getModelingSoftwareLogo = (task: TaskResponse): string => {
+  const logos = [
+    '/logos/maya.svg',
+    '/logos/3dsmax.svg',
+    '/logos/houdini.svg',
+    '/logos/cinema4d.svg',
+    '/logos/blender.svg',
+    '/logos/unreal-engine.svg',
+  ]
+  // 根据任务ID的哈希值随机选择一个logo（确保同一个任务总是显示相同的logo）
+  const hash = task.id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0)
+  return logos[hash % logos.length]
+}
+
+// 快速操作（开始/暂停）
+const handleQuickAction = async (task: TaskResponse, action: 'start' | 'pause') => {
+  try {
+    if (action === 'start') {
+      if (USE_MOCK_DATA) {
+        ElMessage.success(`任务 "${task.task_name}" 已开始 (Mock模式)`)
+        return
+      }
+      await tasksAPI.resumeTask(task.id)
+      ElMessage.success('任务已开始')
+    } else {
+      if (USE_MOCK_DATA) {
+        ElMessage.success(`任务 "${task.task_name}" 已暂停 (Mock模式)`)
+        return
+      }
+      await tasksAPI.pauseTask(task.id)
+      ElMessage.success('任务已暂停')
+    }
+    await loadTasks()
+  } catch (error: any) {
+    console.error('操作失败:', error)
+    ElMessage.error(error.message || '操作失败')
+  }
+}
+
+// 复制任务ID
+const copyTaskId = async (taskId: string) => {
+  try {
+    await navigator.clipboard.writeText(taskId)
+    ElMessage.success('任务ID 已复制')
+  } catch (error) {
+    console.error('复制失败:', error)
+    ElMessage.error('复制失败')
+  }
+}
+
 // 组件挂载时加载任务列表
 onMounted(() => {
   loadTasks()
+
+  // 添加滚动监听
+  const taskListEl = document.querySelector('.task-list')
+  if (taskListEl) {
+    taskListEl.addEventListener('scroll', handleScroll)
+  }
+})
+
+// 组件卸载时移除监听
+onUnmounted(() => {
+  const taskListEl = document.querySelector('.task-list')
+  if (taskListEl) {
+    taskListEl.removeEventListener('scroll', handleScroll)
+  }
 })
 </script>
 
 <style lang="scss" scoped>
 .task-list-container {
-  padding: 16px;
+  padding: 16px 16px 0 16px;
   height: 100%;
   display: flex;
   flex-direction: column;
@@ -548,18 +843,204 @@ onMounted(() => {
   margin: 16px 0;
 }
 
-.scene-name {
+// 任务列表容器
+.task-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px 0;
+  min-height: calc(100vh - 340px);
+}
+
+// 任务卡片
+.task-card {
+  display: flex;
+  align-items: stretch;
+  background-color: $bg-dark;
+  border: 1px solid $border-color;
+  border-radius: 12px;
+  margin-bottom: 16px;
+  padding: 16px;
+  transition: all $transition-normal;
+  cursor: pointer;
+  position: relative;
+  height: 140px; // 增加列表高度
+
+  &:hover {
+    border-color: $primary-color;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    transform: translateY(-2px);
+
+    .task-id-wrapper .copy-icon {
+      opacity: 1;
+    }
+  }
+
+  &:last-child {
+    margin-bottom: 0;
+  }
+}
+
+// 缩略图
+.task-thumbnail {
+  position: relative;
+  width: 192px;
+  height: 108px;
+  flex-shrink: 0;
+  border-radius: 8px;
+  overflow: hidden;
+  margin-right: 16px;
+  background-color: $bg-darker;
+
+  .thumbnail-image {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+}
+
+// 任务信息
+.task-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 8px 0;
+  min-width: 0;
+  gap: 8px;
+}
+
+.info-row {
   display: flex;
   align-items: center;
+  gap: 12px;
+  min-height: 28px;
 }
 
-.task-id {
-  font-family: monospace;
-  color: $text-secondary;
+.info-header {
+  justify-content: space-between;
+
+  .scene-name {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex: 1;
+    min-width: 0;
+
+    .modeling-software-icon {
+      width: 24px;
+      height: 24px;
+      flex-shrink: 0;
+      object-fit: contain;
+    }
+
+    .task-name {
+      font-size: 15px;
+      font-weight: 600;
+      color: $text-primary;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+  }
+
+  .task-id-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-left: 12px;
+    flex-shrink: 0;
+
+    .task-id-label {
+      color: $text-secondary;
+      font-size: 11px;
+    }
+
+    .task-id {
+      font-family: monospace;
+      color: $text-secondary;
+      font-size: 11px;
+    }
+
+    .copy-icon {
+      font-size: 16px;
+      color: rgba(255, 255, 255, 0.9);
+      cursor: pointer;
+      opacity: 0;
+      transition: all $transition-fast;
+      padding: 1px;
+
+      &:hover {
+        color: $primary-color;
+      }
+    }
+  }
 }
 
-.progress-cell {
-  padding: 0 16px;
+.info-middle {
+  .status-tag {
+    flex-shrink: 0;
+  }
+
+  .info-item {
+    color: $text-secondary;
+    font-size: 12px;
+    flex-shrink: 0;
+  }
+}
+
+.info-bottom {
+  justify-content: space-between;
+
+  .progress-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex: 1;
+    max-width: 400px;
+
+    :deep(.el-progress) {
+      flex: 1;
+    }
+
+    .progress-text {
+      font-size: 12px;
+      color: $text-secondary;
+      font-weight: 500;
+      min-width: 40px;
+      text-align: right;
+      flex-shrink: 0;
+    }
+  }
+
+  .create-time {
+    color: $text-disabled;
+    font-size: 12px;
+    flex-shrink: 0;
+    margin-left: 12px;
+  }
+}
+
+// 右侧操作区
+.task-actions {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  margin-left: 16px;
+  min-width: auto;
+
+  .action-btn {
+    width: 100px;
+    height: 40px;
+    font-size: 14px;
+    font-weight: 500;
+    flex-shrink: 0;
+
+    .el-icon {
+      margin-right: 4px;
+      font-size: 16px;
+    }
+  }
 }
 
 .pagination {
@@ -684,5 +1165,14 @@ onMounted(() => {
       margin: 4px 0;
     }
   }
+}
+
+// 加载更多提示样式
+.load-more-hint,
+.no-more-hint {
+  text-align: center;
+  padding: 20px;
+  color: $text-secondary;
+  font-size: $font-size-sm;
 }
 </style>

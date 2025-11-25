@@ -5,28 +5,29 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted } from 'vue'
 import { useTray } from '@/composables/useTray'
-import { initializeAxiosConfig } from '@/api/axios-config'
 
 const { setupTrayWatcher, setupEventListeners } = useTray()
 
 let trayInterval: NodeJS.Timeout | null = null
 
-onMounted(async () => {
+onMounted(() => {
   // 应用启动时的初始化逻辑
-  console.log('YuntuE 应用已启动')
+  console.log('[App] 组件已挂载')
 
-  // 初始化 Axios 配置 - 从 Electron 读取服务器地址
-  await initializeAxiosConfig()
+  // 注意：initializeAxiosConfig 已在 main.ts 中完成
+  // 注意：restoreSession 由路由守卫统一处理，避免重复调用
 
   // 设置暗色主题
   document.documentElement.classList.add('dark')
 
   // 设置托盘监听器
   if (window.electronAPI) {
-    console.log('Setting up tray watchers...')
+    console.log('[App] 设置托盘监听器...')
     trayInterval = setupTrayWatcher()
     setupEventListeners()
   }
+  
+  // 不再需要通知 Electron，使用标准的 ready-to-show 事件即可
 })
 
 onUnmounted(() => {

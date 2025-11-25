@@ -2,10 +2,12 @@
   <div class="main-container">
     <!-- 设置对话框 -->
     <SettingsDialog v-model="showSettingsDialog" />
+    <!-- 更新对话框 -->
+    <UpdateDialog ref="updateDialogRef" />
     <!-- 自定义标题栏 -->
     <div class="titlebar titlebar-drag-region">
       <div class="titlebar-left">
-        <div class="logo">云</div>
+        <img src="/yuntu-logo.svg" class="logo" alt="盛世云图" />
         <span class="app-name">盛世云图</span>
       </div>
       <div class="titlebar-right titlebar-no-drag">
@@ -102,10 +104,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/user'
-import { ElMessageBox, ElMessage } from 'element-plus'
+import { ElMessageBox, ElMessage, ElNotification } from 'element-plus'
 import {
   Setting,
   Service,
@@ -121,10 +123,71 @@ import {
   SwitchButton,
 } from '@element-plus/icons-vue'
 import SettingsDialog from './Settings/SettingsDialog.vue'
+import UpdateDialog from '@/components/UpdateDialog.vue'
+import { downloadManager } from '@/utils/download/DownloadManager'
+import type { TaskResponse } from '@/types/task'
 
 const router = useRouter()
 const userStore = useUserStore()
 const showSettingsDialog = ref(false)
+const updateDialogRef = ref<InstanceType<typeof UpdateDialog> | null>(null)
+
+// WebSocket连接 (后续实现)
+let websocket: WebSocket | null = null
+
+// 初始化WebSocket连接并监听任务完成事件
+onMounted(() => {
+  // TODO: 实际项目中从配置获取WebSocket URL
+  // 这里仅作示例,实际应使用 useServerStatus composable
+  const wsUrl = `ws://localhost:8000/ws?user_id=${userStore.user?.id}`
+
+  try {
+    websocket = new WebSocket(wsUrl)
+
+    websocket.onmessage = (event) => {
+      const message = JSON.parse(event.data)
+
+      // 监听任务完成事件
+      if (message.type === 'task_completed') {
+        const task: TaskResponse = message.task
+
+        // 弹出通知,询问是否立即下载
+        ElNotification({
+          title: '渲染完成',
+          message: `任务 "${task.task_name}" 已完成渲染,是否立即下载?`,
+          type: 'success',
+          duration: 0, // 不自动关闭
+          onClick: async () => {
+            try {
+              await downloadManager.addTaskFromRenderTask(task)
+              router.push('/main/downloads')
+            } catch (error: any) {
+              ElMessage.error(error.message || '添加下载任务失败')
+            }
+          },
+        })
+      }
+    }
+
+    websocket.onerror = (error) => {
+      console.error('[WebSocket] Connection error:', error)
+    }
+
+    websocket.onclose = () => {
+      console.log('[WebSocket] Connection closed')
+    }
+  } catch (error) {
+    console.error('[WebSocket] Failed to connect:', error)
+  }
+})
+
+// 清理WebSocket连接
+onUnmounted(() => {
+  if (websocket) {
+    websocket.close()
+    websocket = null
+  }
+})
 
 // 窗口控制
 const minimizeWindow = () => {
@@ -152,7 +215,8 @@ const handleSettingsCommand = (command: string) => {
       ElMessage.info('控制台功能开发中')
       break
     case 'update':
-      ElMessage.info('检查更新功能开发中')
+      // 手动检查更新
+      updateDialogRef.value?.checkForUpdates()
       break
     case 'about':
       ElMessage.info('关于我们功能开发中')
@@ -208,15 +272,11 @@ const handleUserCommand = async (command: string) => {
     gap: 12px;
 
     .logo {
-      width: 24px;
-      height: 24px;
-      background: $primary-color;
-      border-radius: 4px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 14px;
-      font-weight: bold;
+      width: 32px;
+      height: 32px;
+      object-fit: contain;
+      flex-shrink: 0;
+      margin-top: 2px;
     }
 
     .app-name {

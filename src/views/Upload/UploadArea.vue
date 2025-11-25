@@ -85,26 +85,27 @@
       />
     </div>
 
-    <!-- 预检对话框 -->
-    <PreCheckDialog
-      v-if="showPreCheckDialog && preCheckResult"
-      :result="preCheckResult"
-      @confirm="onPreCheckConfirm"
-      @cancel="onPreCheckCancel"
+    <!-- 打包详情对话框 -->
+    <PackageDetailDialog
+      v-if="showPackageDialog && packageInfo"
+      :package-info="packageInfo"
+      @confirm="onPackageConfirm"
+      @cancel="onPackageCancel"
     />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Upload, FolderOpened } from '@element-plus/icons-vue'
 import { useUpload } from '@/composables/useUpload'
 import UploadTask from '@/components/UploadTask.vue'
-import PreCheckDialog from '@/components/PreCheckDialog.vue'
+import PackageDetailDialog from '@/components/PackageDetailDialog.vue'
 import { drivesAPI } from '@/api/drives'
-import type { PreCheckResponse } from '@/api/upload'
+import type { PackageInfo } from '@/types/upload'
+// 依赖确认流程由 Python CLI 打包替代，不再引入旧的扫描类型
 
 const router = useRouter()
 
@@ -118,20 +119,47 @@ const {
   cancelTask,
   removeTask,
   clearCompleted,
+  setPackageConfirmCallback,
 } = useUpload()
 
 const activeTab = ref('upload')
 const isDragOver = ref(false)
 const fileInput = ref<HTMLInputElement>()
 const defaultDriveId = ref<string>('')
-
-// 预检对话框状态
-const preCheckResult = ref<PreCheckResponse | null>(null)
-const showPreCheckDialog = ref(false)
-let preCheckResolve: ((value: boolean) => void) | null = null
+// 打包详情对话框状态
+const packageInfo = ref<PackageInfo | null>(null)
+const showPackageDialog = ref(false)
+let packageResolve: ((value: boolean) => void) | null = null
 
 // 支持的文件格式
 const SUPPORTED_FORMATS = ['.ma', '.mb', '.zip', '.rar', '.blend', '.c4d', '.max', '.fbx']
+
+// 打包确认回调
+const handlePackageConfirm = async (info: PackageInfo): Promise<boolean> => {
+  return new Promise((resolve) => {
+    packageInfo.value = reactive(info)
+    showPackageDialog.value = true
+    packageResolve = resolve
+  })
+}
+
+// 打包对话框确认
+const onPackageConfirm = () => {
+  showPackageDialog.value = false
+  if (packageResolve) {
+    packageResolve(true)
+    packageResolve = null
+  }
+}
+
+// 打包对话框取消
+const onPackageCancel = () => {
+  showPackageDialog.value = false
+  if (packageResolve) {
+    packageResolve(false)
+    packageResolve = null
+  }
+}
 
 // 获取默认盘符
 onMounted(async () => {
@@ -143,6 +171,10 @@ onMounted(async () => {
     console.error('Failed to load default drive:', error)
     ElMessage.error('获取默认盘符失败，上传功能可能无法正常使用')
   }
+
+  // 设置打包确认回调
+  setPackageConfirmCallback(handlePackageConfirm)
+
 })
 
 // 验证文件类型
@@ -196,8 +228,10 @@ const handleTabChange = (tabName: string) => {
     router.push('/main/upload')
   } else if (tabName === 'tasks') {
     router.push('/main/tasks')
-  } else {
-    ElMessage.info(`${tabName === 'analysis' ? '分析列表' : '我的下载'}功能开发中`)
+  } else if (tabName === 'download') {
+    router.push('/main/downloads')
+  } else if (tabName === 'analysis') {
+    ElMessage.info('分析列表功能开发中')
   }
 }
 
@@ -215,33 +249,7 @@ const handleDragLeave = (e: DragEvent) => {
   }
 }
 
-// 预检结果处理
-const handlePreCheckResult = async (result: PreCheckResponse): Promise<boolean> => {
-  return new Promise((resolve) => {
-    preCheckResult.value = result
-    showPreCheckDialog.value = true
-    preCheckResolve = resolve
-  })
-}
-
-// 预检对话框确认
-const onPreCheckConfirm = () => {
-  showPreCheckDialog.value = false
-  if (preCheckResolve) {
-    preCheckResolve(true)
-    preCheckResolve = null
-  }
-}
-
-// 预检对话框取消
-const onPreCheckCancel = () => {
-  showPreCheckDialog.value = false
-  if (preCheckResolve) {
-    preCheckResolve(false)
-    preCheckResolve = null
-  }
-  ElMessage.info('已取消上传')
-}
+// 依赖确认逻辑已移除，统一由 UploadManager 调用 Python CLI 打包
 
 // 处理文件拖放
 const handleDrop = async (e: DragEvent) => {
@@ -253,6 +261,19 @@ const handleDrop = async (e: DragEvent) => {
   }
 
   const fileArray = Array.from(files)
+  
+  // 在 Electron 环境中，拖拽的文件可能没有路径信息
+  // 对于 Maya 文件，提示用户使用文件选择器
+  const mayaFiles = fileArray.filter(f => {
+    const name = f.name.toLowerCase()
+    return name.endsWith('.ma') || name.endsWith('.mb')
+  })
+  
+  if (mayaFiles.length > 0 && window.electronAPI) {
+    ElMessage.warning('Maya 场景文件请使用"上传新文件"按钮选择，以确保能正确获取文件路径进行打包')
+    // 仍然允许添加，但可能无法打包
+  }
+  
   const { valid, invalid } = validateFileTypes(fileArray)
 
   // 如果有不支持的文件，显示对话框
@@ -267,17 +288,97 @@ const handleDrop = async (e: DragEvent) => {
       return
     }
     // 传入预检回调
-    await addFiles(valid, 'default', defaultDriveId.value, undefined, undefined, handlePreCheckResult)
-    ElMessage.success(`已添加 ${valid.length} 个文件到上传队列`)
+    try {
+      await addFiles(valid, 'default', defaultDriveId.value)
+      ElMessage.success(`已添加 ${valid.length} 个文件到上传队列`)
+    } catch (error: any) {
+      console.error('Failed to add files:', error)
+      const message = error?.message || '上传任务创建失败，请重试'
+      if (message.includes('取消')) {
+        ElMessage.info(message)
+      } else {
+        ElMessage.error(message)
+      }
+    }
   }
 }
 
 // 触发文件选择
-const triggerFileSelect = () => {
-  fileInput.value?.click()
+const triggerFileSelect = async () => {
+  // 在 Electron 环境中，优先使用原生文件对话框以获取文件路径
+  if (window.electronAPI?.selectFiles) {
+    try {
+      const result = await window.electronAPI.selectFiles({
+        properties: ['multiSelections', 'openFile'],
+        filters: [
+          { name: '3D Scene Files', extensions: ['ma', 'mb', 'zip', 'rar', 'blend', 'c4d', 'max', 'fbx'] },
+          { name: 'All Files', extensions: ['*'] }
+        ]
+      })
+
+      if (result.canceled || result.filePaths.length === 0) {
+        return
+      }
+
+      // 将文件路径转换为 File 对象
+      const files: File[] = []
+      for (const filePath of result.filePaths) {
+        try {
+          const buffer = await window.electronAPI!.readFile(filePath)
+          const fileName = filePath.split(/[/\\]/).pop() || 'unknown'
+          const file = new File([buffer as ArrayBuffer], fileName, {
+            lastModified: Date.now(),
+          })
+          // 附加原生路径，供 Maya 打包使用
+          ;(file as any).path = filePath
+          ;(file as any).nativePath = filePath
+          files.push(file)
+        } catch (error) {
+          console.error(`Failed to read file ${filePath}:`, error)
+          ElMessage.error(`无法读取文件: ${filePath}`)
+        }
+      }
+
+      if (files.length === 0) {
+        return
+      }
+
+      const { valid, invalid } = validateFileTypes(files)
+
+      if (invalid.length > 0) {
+        showUnsupportedFormatDialog(invalid)
+      }
+
+      if (valid.length > 0) {
+        if (!defaultDriveId.value) {
+          ElMessage.error('默认盘符未加载，请刷新页面重试')
+          return
+        }
+        try {
+          await addFiles(valid, 'default', defaultDriveId.value)
+          ElMessage.success(`已添加 ${valid.length} 个文件到上传队列`)
+        } catch (error: any) {
+          console.error('Failed to add files:', error)
+          const message = error?.message || '上传任务创建失败，请重试'
+          if (message.includes('取消')) {
+            ElMessage.info(message)
+          } else {
+            ElMessage.error(message)
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Failed to select files via Electron dialog:', error)
+      // 回退到普通文件选择器
+      fileInput.value?.click()
+    }
+  } else {
+    // 非 Electron 环境，使用普通文件选择器
+    fileInput.value?.click()
+  }
 }
 
-// 处理文件选择
+// 处理文件选择（普通文件选择器，作为回退方案）
 const handleFileSelect = async (e: Event) => {
   const target = e.target as HTMLInputElement
   const files = target.files
@@ -301,8 +402,18 @@ const handleFileSelect = async (e: Event) => {
       return
     }
     // 传入预检回调
-    await addFiles(valid, 'default', defaultDriveId.value, undefined, undefined, handlePreCheckResult)
-    ElMessage.success(`已添加 ${valid.length} 个文件到上传队列`)
+    try {
+      await addFiles(valid, 'default', defaultDriveId.value)
+      ElMessage.success(`已添加 ${valid.length} 个文件到上传队列`)
+    } catch (error: any) {
+      console.error('Failed to add files:', error)
+      const message = error?.message || '上传任务创建失败，请重试'
+      if (message.includes('取消')) {
+        ElMessage.info(message)
+      } else {
+        ElMessage.error(message)
+      }
+    }
   }
 
   // 清空input，允许重复选择相同文件
@@ -329,16 +440,37 @@ const clearUploadCache = () => {
 
 <style lang="scss" scoped>
 .upload-area-container {
-  padding: 16px;
+  padding: 16px 16px 0 16px;
   height: 100%;
   display: flex;
   flex-direction: column;
   overflow: hidden;
 }
 
-.task-tabs {
-  margin-bottom: 16px;
+.maya-path-alert {
+  margin: 16px 0 24px;
 
+  .maya-alert-content {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+
+  .path-text {
+    color: $text-secondary;
+    word-break: break-all;
+    flex: 1;
+  }
+
+  .maya-alert-actions {
+    display: flex;
+    gap: 8px;
+  }
+}
+
+.task-tabs {
   :deep(.el-tabs__nav-wrap::after) {
     background-color: $border-color;
   }
@@ -430,14 +562,14 @@ const clearUploadCache = () => {
 .action-buttons {
   display: flex;
   justify-content: flex-end;
-  margin-bottom: 16px;
+  margin: 16px 0;
   gap: 12px;
 }
 
 .upload-list {
   flex: 1;
   overflow-y: auto;
-  padding-right: 8px;
+  padding: 8px 0;
 
   .empty-state {
     display: flex;

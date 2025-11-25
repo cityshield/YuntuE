@@ -14,6 +14,8 @@ const axiosInstance: AxiosInstance = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
+  // 禁用代理，直接使用本地网络连接（绕过 VPN）
+  proxy: false,
 })
 
 /**
@@ -144,10 +146,11 @@ axiosInstance.interceptors.response.use(
         isRefreshing = false
         processQueue(new Error('登录已过期，请重新登录'), null)
 
-        // 清除本地存储
-        localStorage.removeItem('token')
-        localStorage.removeItem('refresh_token')
-        localStorage.removeItem('user')
+        // 调用统一的登出清理逻辑（动态导入避免循环依赖）
+        import('@/stores/user').then(({ useUserStore }) => {
+          const userStore = useUserStore()
+          userStore.performLogout()
+        })
 
         // 重定向到登录页
         window.location.href = '/login'
@@ -165,11 +168,11 @@ axiosInstance.interceptors.response.use(
 
         const { access_token, refresh_token: new_refresh_token } = response.data
 
-        // 保存新的 token
-        localStorage.setItem('token', access_token)
-        if (new_refresh_token) {
-          localStorage.setItem('refresh_token', new_refresh_token)
-        }
+        // 同步更新 Pinia store 和 localStorage（动态导入避免循环依赖）
+        import('@/stores/user').then(({ useUserStore }) => {
+          const userStore = useUserStore()
+          userStore.updateToken(access_token, new_refresh_token)
+        })
 
         // 更新当前请求的 token
         if (originalRequest.headers) {
@@ -180,6 +183,8 @@ axiosInstance.interceptors.response.use(
         processQueue(null, access_token)
         isRefreshing = false
 
+        console.log('[Axios] Token 刷新成功')
+
         // 重新发送原始请求
         return axiosInstance(originalRequest)
       } catch (refreshError) {
@@ -187,9 +192,13 @@ axiosInstance.interceptors.response.use(
         isRefreshing = false
         processQueue(new Error('登录已过期，请重新登录'), null)
 
-        localStorage.removeItem('token')
-        localStorage.removeItem('refresh_token')
-        localStorage.removeItem('user')
+        console.log('[Axios] Token 刷新失败，执行登出')
+
+        // 调用统一的登出清理逻辑（动态导入避免循环依赖）
+        import('@/stores/user').then(({ useUserStore }) => {
+          const userStore = useUserStore()
+          userStore.performLogout()
+        })
 
         window.location.href = '/login'
 

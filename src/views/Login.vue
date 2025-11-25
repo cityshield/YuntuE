@@ -3,7 +3,7 @@
     <!-- 自定义标题栏 -->
     <div class="titlebar titlebar-drag-region">
       <div class="titlebar-left">
-        <div class="logo">云</div>
+        <img src="/yuntu-logo.svg" class="logo" alt="盛世云图" />
         <span class="app-name">盛世云图</span>
       </div>
       <div class="titlebar-controls titlebar-no-drag">
@@ -115,54 +115,61 @@
           <Transition name="fade-slide" mode="out-in">
             <div v-if="activeTab === 'wechat'" key="wechat" class="wechat-login">
               <h2 class="login-title">微信扫码登录</h2>
-              <p class="login-subtitle">请打开微信扫一扫</p>
+              <p class="login-subtitle">{{ wechatLogin.statusText }}</p>
+
               <div class="qr-code-container">
-              <div class="qr-placeholder">
-                <svg class="qr-icon" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
-                  <!-- 左上角定位点 -->
-                  <rect x="5" y="5" width="30" height="30" fill="none" stroke="#000" stroke-width="4"/>
-                  <rect x="12" y="12" width="16" height="16" fill="#000"/>
+                <!-- 加载中状态 -->
+                <div v-if="wechatLogin.isLoading" class="qr-loading">
+                  <el-icon class="is-loading"><Loading /></el-icon>
+                  <p>生成二维码中...</p>
+                </div>
 
-                  <!-- 右上角定位点 -->
-                  <rect x="65" y="5" width="30" height="30" fill="none" stroke="#000" stroke-width="4"/>
-                  <rect x="72" y="12" width="16" height="16" fill="#000"/>
+                <!-- 二维码显示 -->
+                <div v-else-if="wechatLogin.isPending" class="qr-code-wrapper">
+                  <qrcode-vue
+                    :value="wechatLogin.qrCodeUrl.value"
+                    :size="168"
+                    level="H"
+                    render-as="svg"
+                  />
+                </div>
 
-                  <!-- 左下角定位点 -->
-                  <rect x="5" y="65" width="30" height="30" fill="none" stroke="#000" stroke-width="4"/>
-                  <rect x="12" y="72" width="16" height="16" fill="#000"/>
+                <!-- 已扫码状态 -->
+                <div v-else-if="wechatLogin.isScanned" class="qr-status scanned">
+                  <el-icon class="status-icon success"><CircleCheck /></el-icon>
+                  <p class="status-text">扫码成功</p>
+                  <p class="status-hint">请在手机上确认登录</p>
+                </div>
 
-                  <!-- 中间的数据点 -->
-                  <rect x="45" y="15" width="6" height="6" fill="#000"/>
-                  <rect x="55" y="15" width="6" height="6" fill="#000"/>
-                  <rect x="45" y="25" width="6" height="6" fill="#000"/>
-                  <rect x="55" y="25" width="6" height="6" fill="#000"/>
+                <!-- 已过期状态 -->
+                <div v-else-if="wechatLogin.isExpired" class="qr-status expired">
+                  <el-icon class="status-icon error"><CircleClose /></el-icon>
+                  <p class="status-text">二维码已过期</p>
+                  <el-button
+                    type="primary"
+                    size="small"
+                    @click="wechatLogin.refreshQRCode"
+                    class="refresh-btn"
+                  >
+                    刷新二维码
+                  </el-button>
+                </div>
 
-                  <rect x="15" y="45" width="6" height="6" fill="#000"/>
-                  <rect x="25" y="45" width="6" height="6" fill="#000"/>
-                  <rect x="15" y="55" width="6" height="6" fill="#000"/>
-                  <rect x="25" y="55" width="6" height="6" fill="#000"/>
-
-                  <rect x="45" y="45" width="6" height="6" fill="#000"/>
-                  <rect x="55" y="45" width="6" height="6" fill="#000"/>
-                  <rect x="45" y="55" width="6" height="6" fill="#000"/>
-                  <rect x="55" y="55" width="6" height="6" fill="#000"/>
-
-                  <rect x="65" y="45" width="6" height="6" fill="#000"/>
-                  <rect x="75" y="45" width="6" height="6" fill="#000"/>
-                  <rect x="85" y="45" width="6" height="6" fill="#000"/>
-                  <rect x="65" y="55" width="6" height="6" fill="#000"/>
-                  <rect x="75" y="55" width="6" height="6" fill="#000"/>
-                  <rect x="85" y="55" width="6" height="6" fill="#000"/>
-
-                  <rect x="45" y="65" width="6" height="6" fill="#000"/>
-                  <rect x="55" y="65" width="6" height="6" fill="#000"/>
-                  <rect x="45" y="75" width="6" height="6" fill="#000"/>
-                  <rect x="55" y="75" width="6" height="6" fill="#000"/>
-                  <rect x="45" y="85" width="6" height="6" fill="#000"/>
-                  <rect x="55" y="85" width="6" height="6" fill="#000"/>
-                </svg>
+                <!-- 错误状态 -->
+                <div v-else-if="wechatLogin.error" class="qr-status error">
+                  <el-icon class="status-icon error"><WarningFilled /></el-icon>
+                  <p class="status-text">{{ wechatLogin.error }}</p>
+                  <el-button
+                    type="primary"
+                    size="small"
+                    @click="wechatLogin.generateQRCode"
+                    class="refresh-btn"
+                  >
+                    重新生成
+                  </el-button>
+                </div>
               </div>
-            </div>
+
               <div class="remember-me">
                 <el-checkbox v-model="rememberLogin">记住我的登录状态</el-checkbox>
               </div>
@@ -260,7 +267,7 @@
             </button>
           </div>
         </div>
-      <div class="status-item">
+        <div class="status-item">
         <span class="status-label">服务器地址:</span>
         <span class="status-value">{{ serverStatus.apiUrl || '加载中...' }}</span>
       </div>
@@ -362,7 +369,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/user'
 import { ElMessage } from 'element-plus'
@@ -381,14 +388,65 @@ import {
   CircleClose,
   WarningFilled,
 } from '@element-plus/icons-vue'
+import QrcodeVue from 'qrcode.vue'
 import { authAPI } from '@/api/auth'
 import { useServerStatus } from '@/composables/useServerStatus'
+import { useWeChatLogin } from '@/composables/useWeChatLogin'
+import type { WeChatLoginStatusResponse } from '@/api/wechat'
 
 const router = useRouter()
 const userStore = useUserStore()
 
 // 服务器状态检测
 const { status: serverStatus, checkServerStatus } = useServerStatus()
+
+// 微信登录状态管理
+const wechatLogin = useWeChatLogin({
+  pollingInterval: 2000, // 2秒轮询一次
+  onSuccess: handleWeChatLoginSuccess,
+  onError: handleWeChatLoginError
+})
+
+// 微信登录成功处理
+function handleWeChatLoginSuccess(data: WeChatLoginStatusResponse) {
+  if (!data.user || !data.access_token || !data.refresh_token) {
+    ElMessage.error('登录数据不完整，请重试')
+    return
+  }
+
+  // 保存用户信息和 token
+  userStore.login(
+    {
+      id: data.user.id,
+      username: data.user.username,
+      phone: data.user.phone,
+      avatar: data.user.avatar,
+      balance: data.user.balance,
+      memberLevel: data.user.member_level,
+    },
+    data.access_token,
+    data.refresh_token
+  )
+
+  ElMessage.success('登录成功')
+  router.push('/main/tasks')
+}
+
+// 微信登录错误处理
+function handleWeChatLoginError(error: any) {
+  console.error('微信登录错误:', error)
+
+  let errorMsg = '微信登录失败'
+  if (error?.response?.data?.detail) {
+    errorMsg = error.response.data.detail
+  } else if (error?.message) {
+    errorMsg = error.message
+  } else if (typeof error === 'string') {
+    errorMsg = error
+  }
+
+  ElMessage.error(errorMsg)
+}
 
 // 环境文本映射
 const environmentText = computed(() => {
@@ -400,7 +458,7 @@ const environmentText = computed(() => {
   return envMap[serverStatus.value.environment] || '未知'
 })
 
-const activeTab = ref('wechat')
+const activeTab = ref('phone') // 默认使用手机号登录（微信登录功能后端暂未实现）
 const loading = ref(false)
 const agreedToTerms = ref(true)
 const rememberLogin = ref(true)
@@ -412,6 +470,29 @@ const serverStatusCollapsed = ref(false)
 const toggleLoginType = () => {
   activeTab.value = activeTab.value === 'wechat' ? 'phone' : 'wechat'
 }
+
+// 监听 activeTab 变化，初始化微信登录
+watch(activeTab, (newTab) => {
+  if (newTab === 'wechat' && !wechatLogin.qrCodeUrl) {
+    // 切换到微信登录且二维码未生成，则生成二维码
+    wechatLogin.generateQRCode()
+  } else if (newTab !== 'wechat') {
+    // 切换到其他登录方式，停止轮询
+    wechatLogin.stopPolling()
+  }
+})
+
+// 页面加载时初始化
+onMounted(() => {
+  if (activeTab.value === 'wechat') {
+    wechatLogin.generateQRCode()
+  }
+})
+
+// 页面卸载时清理
+onUnmounted(() => {
+  wechatLogin.reset()
+})
 
 // 切换服务器状态面板
 const toggleServerStatus = () => {
@@ -433,8 +514,8 @@ const languages = [
 ]
 
 const phoneLoginForm = reactive({
-  phone: '',
-  password: '',
+  phone: '13777777777',
+  password: 'testpass123',
   remember: true,
   autoLogin: false,
 })
@@ -459,39 +540,50 @@ const handlePhoneLogin = async () => {
     return
   }
 
-  await phoneLoginFormRef.value.validate(async (valid: boolean) => {
-    if (!valid) return
+  // 使用 Promise 模式进行表单校验
+  const valid = await phoneLoginFormRef.value.validate()
+  if (!valid) return
 
-    loading.value = true
-    try {
-      // 调用登录 API，将手机号作为 username 传递
-      const response = await authAPI.login({
-        username: phoneLoginForm.phone,
-        password: phoneLoginForm.password,
-      })
+  loading.value = true
+  try {
+    // 调用登录 API，将手机号作为 username 传递
+    const response = await authAPI.login({
+      username: phoneLoginForm.phone,
+      password: phoneLoginForm.password,
+    })
 
-      // 保存用户信息和 token (包含 refresh_token)
-      userStore.login(
-        {
-          id: response.user.id,
-          username: response.user.username,
-          phone: response.user.phone,
-          avatar: response.user.avatar,
-          balance: response.user.balance,
-          memberLevel: response.user.member_level,
-        },
-        response.access_token,
-        response.refresh_token
-      )
+    // 保存用户信息和 token (包含 refresh_token)
+    userStore.login(
+      {
+        id: response.user.id,
+        username: response.user.username,
+        phone: response.user.phone,
+        avatar: response.user.avatar,
+        balance: response.user.balance,
+        memberLevel: response.user.member_level,
+      },
+      response.access_token,
+      response.refresh_token
+    )
 
-      ElMessage.success('登录成功')
-      router.push('/main/tasks')
-    } catch (error: any) {
-      ElMessage.error(error.message || '登录失败，请检查手机号和密码')
-    } finally {
-      loading.value = false
+    ElMessage.success('登录成功')
+    router.push('/main/tasks')
+  } catch (error: any) {
+    console.error('[Login] 手机号登录失败:', error)
+
+    let errorMsg = '登录失败,请检查手机号和密码'
+    if (error?.response?.data?.detail) {
+      errorMsg = error.response.data.detail
+    } else if (error?.message) {
+      errorMsg = error.message
+    } else if (typeof error === 'string') {
+      errorMsg = error
     }
-  })
+
+    ElMessage.error(errorMsg)
+  } finally {
+    loading.value = false
+  }
 }
 
 const handleRegister = () => {
@@ -542,11 +634,16 @@ const handleLanguageChange = (lang: string) => {
 
 // 初始化服务器配置表单
 const initServerConfigForm = async () => {
-  if (window.electronAPI) {
-    const config = await window.electronAPI.serverConfigGet()
-    serverConfigForm.apiBaseUrl = config.apiBaseUrl
-    serverConfigForm.wsBaseUrl = config.wsBaseUrl
-    serverConfigForm.environment = config.environment
+  try {
+    if (window.electronAPI) {
+      const config = await window.electronAPI.serverConfigGet()
+      serverConfigForm.apiBaseUrl = config.apiBaseUrl
+      serverConfigForm.wsBaseUrl = config.wsBaseUrl
+      serverConfigForm.environment = config.environment
+    }
+  } catch (error: any) {
+    console.error('[Login] 初始化服务器配置失败:', error)
+    // 初始化时的错误不弹提示，只在控制台记录
   }
 }
 
@@ -594,7 +691,18 @@ const saveServerConfig = async () => {
       }, 500)
     }
   } catch (error: any) {
-    ElMessage.error('保存配置失败: ' + (error.message || '未知错误'))
+    console.error('[Login] 保存配置失败:', error)
+
+    let errorMsg = '未知错误'
+    if (error?.response?.data?.detail) {
+      errorMsg = error.response.data.detail
+    } else if (error?.message) {
+      errorMsg = error.message
+    } else if (typeof error === 'string') {
+      errorMsg = error
+    }
+
+    ElMessage.error(`保存配置失败: ${errorMsg}`)
   }
 }
 
@@ -709,15 +817,10 @@ initServerConfigForm()
     gap: 8px;
 
     .logo {
-      width: 20px;
-      height: 20px;
-      background: $primary-color;
-      border-radius: 4px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 12px;
-      font-weight: bold;
+      width: 24px;
+      height: 24px;
+      object-fit: contain;
+      flex-shrink: 0;
     }
 
     .app-name {
@@ -1039,17 +1142,85 @@ initServerConfigForm()
       justify-content: center;
       margin-bottom: 32px;
       padding: 14px;
+      position: relative;
+      overflow: hidden;
 
-      .qr-placeholder {
+      // 加载状态
+      .qr-loading {
+        width: 100%;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        color: $text-secondary;
+        gap: 12px;
+
+        .is-loading {
+          font-size: 32px;
+          animation: rotating 1s linear infinite;
+          color: $primary-color;
+        }
+
+        p {
+          font-size: $font-size-sm;
+          margin: 0;
+        }
+      }
+
+      // 二维码包装器
+      .qr-code-wrapper {
         width: 100%;
         height: 100%;
         display: flex;
         align-items: center;
         justify-content: center;
+      }
 
-        .qr-icon {
-          width: 100%;
-          height: 100%;
+      // 状态显示（扫码成功、已过期、错误等）
+      .qr-status {
+        width: 100%;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 12px;
+
+        .status-icon {
+          font-size: 48px;
+
+          &.success {
+            color: #67c23a;
+          }
+
+          &.error {
+            color: #f56c6c;
+          }
+        }
+
+        .status-text {
+          font-size: $font-size-md;
+          font-weight: 600;
+          color: $text-primary;
+          margin: 0;
+        }
+
+        .status-hint {
+          font-size: $font-size-sm;
+          color: $text-secondary;
+          margin: 0;
+        }
+
+        .refresh-btn {
+          margin-top: 8px;
+        }
+
+        // 扫码成功动画
+        &.scanned {
+          .status-icon {
+            animation: scaleIn 0.3s ease-out;
+          }
         }
       }
     }
@@ -1359,6 +1530,20 @@ initServerConfigForm()
   }
   to {
     transform: rotate(360deg);
+  }
+}
+
+@keyframes scaleIn {
+  0% {
+    transform: scale(0);
+    opacity: 0;
+  }
+  50% {
+    transform: scale(1.1);
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
   }
 }
 </style>

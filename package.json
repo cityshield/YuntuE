@@ -1,27 +1,36 @@
 {
   "name": "yuntue",
-  "version": "1.0.0",
+  "version": "1.0.19",
   "description": "云图渲染客户端 - Electron版",
   "main": "dist-electron/main.js",
   "author": "YunTu Team",
   "license": "MIT",
   "scripts": {
     "dev": "vite",
+    "start": "npm run electron:dev",
+    "electron": "wait-on http://localhost:5173 && electron .",
+    "pack": "node scripts/auto-pack.js",
     "build": "vue-tsc --noEmit && vite build && electron-builder",
-    "build:win": "export BUILD_TIMESTAMP=$(TZ='Asia/Shanghai' date '+%Y%m%d%H%M%S') && vue-tsc --noEmit && vite build && electron-builder --win",
-    "build:win:portable": "BUILD_TIMESTAMP=$(TZ='Asia/Shanghai' date '+%Y%m%d%H%M%S') vue-tsc --noEmit && vite build && electron-builder --win --config.win.target=portable",
-    "build:mac": "vue-tsc --noEmit && vite build && electron-builder --mac",
-    "build:all": "BUILD_TIMESTAMP=$(TZ='Asia/Shanghai' date '+%Y%m%d%H%M%S') vue-tsc --noEmit && vite build && electron-builder --win --mac",
+    "build:win": "node scripts/build-win.js",
+    "build:win:portable": "node scripts/build-win.js --portable",
+    "dist": "node scripts/build-win.js",
+    "dist:portable": "node scripts/build-win.js --portable",
+    "build:mac": "node scripts/generate-config.js && vue-tsc --noEmit && vite build && electron-builder --mac",
+    "build:all": "BUILD_TIMESTAMP=$(TZ='Asia/Shanghai' date '+%Y%m%d%H%M%S') node scripts/generate-config.js && vue-tsc--noEmit && vite build && electron-builder --win --mac",
     "preview": "vite preview",
-    "electron:dev": "concurrently \"vite\" \"wait-on http://localhost:5173 && electron .\"",
-    "electron:build": "vite build && electron-builder"
+    "electron:dev": "concurrently --raw \"vite\" \"wait-on http://localhost:5173 && electron .\"",
+    "electron:build": "node scripts/generate-config.js && vite build && electron-builder"
   },
   "dependencies": {
     "@element-plus/icons-vue": "^2.3.2",
+    "@types/jszip": "^3.4.0",
     "ali-oss": "^6.23.0",
     "axios": "^1.7.2",
+    "electron-updater": "^6.6.2",
     "element-plus": "^2.11.5",
+    "jszip": "^3.10.1",
     "pinia": "^3.0.3",
+    "qrcode.vue": "^3.6.0",
     "socket.io-client": "^4.7.5",
     "spark-md5": "^3.0.2",
     "vue": "^3.5.22",
@@ -31,14 +40,16 @@
     "@types/spark-md5": "^3.0.5",
     "@vitejs/plugin-vue": "^5.0.4",
     "concurrently": "^8.2.2",
-    "electron": "^28.2.0",
+    "electron": "^39.1.2",
     "electron-builder": "^24.13.3",
     "sass": "^1.71.1",
+    "simple-peer": "^9.11.1",
     "typescript": "^5.4.2",
     "vite": "^5.1.6",
     "vite-plugin-electron": "^0.28.6",
     "vue-tsc": "^2.0.6",
-    "wait-on": "^7.2.0"
+    "wait-on": "^7.2.0",
+    "ws": "^8.18.3"
   },
   "build": {
     "appId": "com.yuntu.renderer",
@@ -59,6 +70,24 @@
         "filter": [
           "**/*"
         ]
+      },
+      {
+        "from": "python/get_maya_plug4",
+        "to": "python/get_maya_plug4",
+        "filter": [
+          "**/*.pyc",
+          "**/__pycache__/**",
+          "**/*.txt",
+          "**/*.md"
+        ]
+      },
+      {
+        "from": "electron/scripts",
+        "to": "scripts",
+        "filter": [
+          "**/dist/**",
+          "**/*.py"
+        ]
       }
     ],
     "extraFiles": [
@@ -76,7 +105,7 @@
       ]
     },
     "win": {
-      "icon": "build/icon.ico",
+      "icon": "public/icons/tray-icon.ico",
       "target": [
         {
           "target": "nsis",
@@ -96,9 +125,9 @@
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
       "allowElevation": true,
-      "installerIcon": "build/icon.ico",
-      "uninstallerIcon": "build/icon.ico",
-      "installerHeaderIcon": "build/icon.ico",
+      "installerIcon": "public/icons/tray-icon.ico",
+      "uninstallerIcon": "public/icons/tray-icon.ico",
+      "installerHeaderIcon": "public/icons/tray-icon.ico",
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "shortcutName": "盛世云图",
@@ -106,6 +135,12 @@
     },
     "portable": {
       "artifactName": "${productName}-v${version}-${env.BUILD_TIMESTAMP}-Portable.${ext}"
-    }
+    },
+    "publish": [
+      {
+        "provider": "generic",
+        "url": "http://192.168.99.191:8000/client-updates/"
+      }
+    ]
   }
 }

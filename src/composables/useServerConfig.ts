@@ -49,7 +49,7 @@ export function useServerConfig() {
       if (!window.electronAPI) {
         throw new Error('Electron API not available')
       }
-      ;(window.electronAPI as any).serverConfigSet(newConfig)
+      await (window.electronAPI as any).serverConfigSet(newConfig)
       config.value = newConfig
       console.log('[ServerConfig] Saved:', newConfig)
     } catch (err: any) {

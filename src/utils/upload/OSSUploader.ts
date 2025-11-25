@@ -158,6 +158,12 @@ export class OSSUploader {
         secure: true,
         // 超时设置（增加超时时间以适应大文件）
         timeout: 300000, // 5分钟
+        // 禁用代理，直接使用本地网络连接（绕过 VPN）
+        // ali-oss SDK 内部使用 axios，通过 request 选项禁用代理
+        request: {
+          // 禁用代理
+          proxy: false,
+        },
         // 添加更多配置以提高稳定性
         refreshSTSToken: async () => {
           // 如果需要，可以在这里刷新 STS token
@@ -169,6 +175,8 @@ export class OSSUploader {
           }
         },
       })
+      
+      console.log('[OSSUploader] OSS Client configured with proxy disabled')
 
       console.log('OSS Client initialized:', {
         bucket: this.credentials.bucketName,
@@ -188,6 +196,21 @@ export class OSSUploader {
    */
   async start(): Promise<OSS.PutObjectResult> {
     try {
+      // 验证文件对象
+      if (!this.file) {
+        throw new Error('文件对象不存在')
+      }
+      if (this.file.size === 0) {
+        throw new Error('文件大小为 0，无法上传')
+      }
+      
+      console.log(`[OSSUploader] Starting upload:`, {
+        fileName: this.file.name,
+        fileSize: this.file.size,
+        fileType: this.file.type,
+        taskId: this.taskId,
+      })
+
       this.startTime = Date.now()
       this.lastReportedPercent = -1
       this.currentPercent = 0
@@ -198,9 +221,21 @@ export class OSSUploader {
       this.isCanceled = false
       this.uploadSamples = [] // 清空采样队列
 
-      // 启动进度定时器
+      // 启动进度定时器（立即触发一次，显示初始状态）
       this.startProgressTimer()
+      
+      // 立即触发一次进度更新，显示 0%
+      if (this.onProgress) {
+        this.onProgress({
+          percent: 0,
+          uploadedSize: 0,
+          totalSize: this.file.size,
+          speed: 0,
+          remainingTime: 0,
+        })
+      }
 
+      console.log(`[OSSUploader] Initializing OSS client...`)
       // 初始化客户端
       await this.initClient()
 
@@ -210,13 +245,16 @@ export class OSSUploader {
 
       // 使用初始 objectKey（如果存在），确保断点续传时使用相同的 key
       const objectKey = this.initialObjectKey || this.credentials.objectKey
+      console.log(`[OSSUploader] Using objectKey: ${objectKey}`)
 
-      // 根据文件大小选择上传方式
+      // 根据文件大小选择上传方式（MULTIPART_THRESHOLD = 0，所有文件都使用分片上传）
       if (this.file.size > OSSUploader.MULTIPART_THRESHOLD) {
         // 大文件：分片上传
+        console.log(`[OSSUploader] Using multipart upload`)
         return await this.multipartUpload(objectKey)
       } else {
         // 小文件：简单上传
+        console.log(`[OSSUploader] Using simple upload`)
         return await this.simpleUpload(objectKey)
       }
     } catch (error: any) {
@@ -415,8 +453,8 @@ export class OSSUploader {
 
     const percentInt = Math.floor(percent * 100) // 转为整数百分比
 
-    // 只在百分比变化至少 1% 时才立即报告
-    if (percentInt > this.lastReportedPercent) {
+    // 只在百分比变化至少 0.5% 时才立即报告（更频繁的更新）
+    if (percentInt > this.lastReportedPercent || percentInt === 0) {
       this.lastReportedPercent = percentInt
 
       // 使用定时器计算好的速度和剩余时间
@@ -427,6 +465,8 @@ export class OSSUploader {
         speed: this.currentSpeed,
         remainingTime: this.currentRemainingTime,
       })
+      
+      console.log(`[OSSUploader] Progress: ${percentInt}% (${this.formatFileSize(uploadedSize)} / ${this.formatFileSize(totalSize)})`)
     }
   }
 
